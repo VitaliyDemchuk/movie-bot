@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
+
 import axios from 'axios';
 // eslint-disable-next-line
 const _ = require('lodash');
@@ -6,6 +8,7 @@ const _ = require('lodash');
 @Injectable()
 export class BotService {
   public bot: any = null;
+  private readonly logger = new Logger(BotService.name);
 
   onApplicationBootstrap() {
     this.initialize();
@@ -22,6 +25,12 @@ export class BotService {
     axios.defaults.params.language = 'ru';
 
     this.test();
+  }
+
+  // TODO: customize
+  @Cron('0 00 18 * * *')
+  handleCron() {
+    this.getLatestMovies();
   }
 
   // TODO: remove
@@ -43,6 +52,32 @@ export class BotService {
     });
   }
 
+  async getLatestMovies() {
+    try {
+      // TODO: remove
+      // const chatId = '81465442';
+      const chatId = '';
+
+      const result = await axios({
+        url: `/movie/popular`,
+        method: 'GET',
+        params: { region: 'ru' },
+      });
+
+      const movies = await this.getProcessedMovies(
+        _.get(result.data, `results`, []).filter(
+          (el) => el.vote_average >= 5.5,
+        ),
+      );
+
+      movies.forEach((movie: any) => {
+        this.sendPost(chatId, movie);
+      });
+    } catch (e) {
+      Promise.reject(e);
+    }
+  }
+
   async searchMovies(search: string) {
     try {
       const result = await axios({
@@ -51,15 +86,9 @@ export class BotService {
         params: { query: search },
       });
 
-      const movies = _.get(result.data, `results`) || [];
-
-      for (const movie of movies) {
-        const resultVideos = await axios.get(`/movie/${movie.id}/videos`);
-        movie.videos =
-          _.filter(_.get(resultVideos.data, 'results'), (item: any) =>
-            ['Trailer', 'Teaser'].includes(_.get(item, 'type')),
-          ) || [];
-      }
+      const movies = await this.getProcessedMovies(
+        _.get(result.data, `results`),
+      );
 
       return Promise.resolve(movies);
     } catch (e) {
@@ -67,7 +96,32 @@ export class BotService {
     }
   }
 
-  sendPost(chatId, movie) {
+  async getProcessedMovies(items: any) {
+    try {
+      const movies = _.cloneDeep(items) || [];
+      for (const movie of movies) {
+        movie.videos = await this.getMovies(movie.id);
+      }
+      return Promise.resolve(movies);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  async getMovies(id: number) {
+    try {
+      const resultVideos = await axios.get(`/movie/${id}/videos`);
+      const videos =
+        _.filter(_.get(resultVideos.data, 'results'), (item: any) =>
+          ['Trailer', 'Teaser'].includes(_.get(item, 'type')),
+        ) || [];
+      return Promise.resolve(videos);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  sendPost(chatId: string, movie: any) {
     let markdown = ``;
 
     if (_.get(movie, 'release_date')) {

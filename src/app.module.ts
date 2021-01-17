@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
+
 import { AppController } from './app.controller';
 import { BotService } from './bot/bot.service';
-import { ConfigModule } from '@nestjs/config';
 
 @Module({
   controllers: [AppController],
   providers: [BotService],
-  imports: [ConfigModule.forRoot()],
+  imports: [ConfigModule.forRoot(), ScheduleModule.forRoot()],
 })
 export class AppModule {}
