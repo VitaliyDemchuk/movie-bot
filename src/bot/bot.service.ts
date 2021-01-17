@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class BotService {
-  botMessage() {
+  onApplicationBootstrap() {
+    this.initialize();
+  }
+
+  initialize() {
     // eslint-disable-next-line
     const TelegramBot = require('node-telegram-bot-api');
     const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
