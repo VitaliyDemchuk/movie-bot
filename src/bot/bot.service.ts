@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+// import { UserService } from '../user/user.service';
 
 import axios from 'axios';
 // eslint-disable-next-line
@@ -8,9 +9,11 @@ const _ = require('lodash');
 @Injectable()
 export class BotService {
   public bot: any = null;
-  private readonly logger = new Logger(BotService.name);
+
+  // constructor(private readonly UserService: UserService) { }
 
   onApplicationBootstrap() {
+    console.log('test');
     this.initialize();
   }
 
@@ -36,10 +39,16 @@ export class BotService {
   // TODO: remove
   test() {
     this.bot.on('message', async (msg: any) => {
+      const userId = msg.from.id;
+
       this.bot.sendMessage(
-        msg.from.id,
+        userId,
         '🔎 Выполняется поиск, пожалуйста, подождите...',
       );
+
+      // await this.UserService.create({ id: userId });
+      // const result = this.UserService.findAll();
+      // console.log(result);
 
       const movies = await this.searchMovies(msg.text);
       if (!_.get(movies, 'length')) {
