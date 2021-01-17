@@ -24,26 +24,22 @@ export class BotService {
     this.test();
   }
 
+  // TODO: remove
   test() {
     this.bot.on('message', async (msg: any) => {
-      const movie = await this.searchMovies(msg.text);
-      let markdown = ``;
+      this.bot.sendMessage(
+        msg.from.id,
+        '🔎 Выполняется поиск, пожалуйста, подождите...',
+      );
 
-      if (!movie) {
-        markdown = `Информация о фильме не найдена`;
+      const movies = await this.searchMovies(msg.text);
+      if (!_.get(movies, 'length')) {
+        this.bot.sendMessage(msg.from.id, 'Информация о фильме не найдена');
       } else {
-        markdown = `*${_.get(movie, 'title')}*\n`;
-        movie.videos.forEach((v: any) => {
-          markdown += `▶️ [Смотреть тизер](https://youtu.be/${v.key})\n`;
+        movies.forEach((movie: any) => {
+          this.sendPost(msg.from.id, movie);
         });
-        if (_.get(movie, 'vote_average')) {
-          markdown += `⭐ ${movie.vote_average}`;
-        }
       }
-
-      this.bot.sendMessage(msg.from.id, markdown, {
-        parse_mode: 'markdown',
-      });
     });
   }
 
@@ -55,8 +51,9 @@ export class BotService {
         params: { query: search },
       });
 
-      const movie = _.get(result.data, `results.0`);
-      if (movie) {
+      const movies = _.get(result.data, `results`) || [];
+
+      for (const movie of movies) {
         const resultVideos = await axios.get(`/movie/${movie.id}/videos`);
         movie.videos =
           _.filter(_.get(resultVideos.data, 'results'), (item: any) =>
@@ -64,9 +61,36 @@ export class BotService {
           ) || [];
       }
 
-      return Promise.resolve(movie);
+      return Promise.resolve(movies);
     } catch (e) {
       return Promise.reject(e);
     }
+  }
+
+  sendPost(chatId, movie) {
+    let markdown = ``;
+
+    if (_.get(movie, 'release_date')) {
+      const date: Date = new Date(movie.release_date);
+      movie.year = `(${date.getFullYear()})`;
+    }
+    markdown = `*${movie.title} ${movie.year}*\n`;
+    if (movie.overview) {
+      markdown += `${movie.overview}\n`;
+    }
+    movie.videos.forEach((v: any) => {
+      const name =
+        typeof v.name === 'string'
+          ? v.name.replace(/\[|\]|\(|\)/g, '')
+          : 'Тизер';
+      markdown += `📺 [${name}](https://youtu.be/${v.key})\n`;
+    });
+    if (_.get(movie, 'vote_average')) {
+      markdown += `⭐ ${movie.vote_average}`;
+    }
+
+    this.bot.sendMessage(chatId, markdown, {
+      parse_mode: 'markdown',
+    });
   }
 }
