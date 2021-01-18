@@ -6,29 +6,33 @@ import { CreateUserDto } from './create-user.dto';
 
 @Injectable()
 export class UserService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) { }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
-    const createdUser = new this.userModel(createUserDto);
-    return createdUser.save();
+  async create(user: CreateUserDto): Promise<User> {
+    const { id } = user;
+    const existUser = await this.userModel.findOne({ id }).exec();
+
+    if (Boolean(existUser)) {
+      return existUser;
+    } else {
+      return this.userModel.create(user);
+    }
   }
 
-  async delete(id: number): Promise<User[]> {
+  async update(user: CreateUserDto): Promise<User> {
+    const { id } = user;
+    return this.userModel.updateOne({ id }, user);
+  }
+
+  async delete(id: number): Promise<User> {
     return this.userModel.deleteOne({ id });
+  }
+
+  async get(id: number): Promise<User> {
+    return this.userModel.findOne({ id }).exec();
   }
 
   async findAll(): Promise<User[]> {
     return this.userModel.find().exec();
-  }
-
-  async findOneOrCreate(input: CreateUserDto): Promise<User> {
-    const { id } = input;
-    const user = await this.userModel.findOne({ id }).exec();
-
-    if (Boolean(user)) {
-      return user;
-    } else {
-      return this.create(input);
-    }
   }
 }

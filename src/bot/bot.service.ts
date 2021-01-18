@@ -51,7 +51,10 @@ export class BotService {
 
       switch (userMsg) {
         case '/start':
-          await this.UserService.findOneOrCreate({ id: userId });
+          await this.UserService.create({
+            id: userId,
+            viewedMovies: [],
+          });
           this.bot.sendMessage(
             userId,
             `🤖 Здравствуйте. Я создан чтобы вы могли узнать о популярных фильмах. Список моих функций - /help`,
@@ -84,9 +87,30 @@ export class BotService {
                 ? 'now_playing'
                 : 'popular';
           const moviesList = await this.getMoviesList(urlPart);
-          moviesList.forEach((movie: any) => {
-            this.sendPost(userId, movie);
-          });
+
+          const currentUser = await this.UserService.get(userId);
+          if (currentUser) {
+            const viewedMovies = currentUser.viewedMovies || [];
+            let emptyResult = true;
+
+            moviesList.forEach((movie: any) => {
+              if (!viewedMovies.includes(movie.id)) {
+                this.sendPost(userId, movie);
+                viewedMovies.push(movie.id);
+                emptyResult = false;
+              }
+            });
+
+            await this.UserService.update({
+              id: userId,
+              viewedMovies,
+            });
+
+            if (emptyResult) {
+              this.bot.sendMessage(userId, '🤷‍♂️ Новых фильмов не обнаружено');
+            }
+          }
+
           break;
 
         default:
