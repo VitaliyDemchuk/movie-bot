@@ -13,7 +13,22 @@ export class UserService {
     return createdUser.save();
   }
 
+  async delete(id: number): Promise<User[]> {
+    return this.userModel.deleteOne({ id });
+  }
+
   async findAll(): Promise<User[]> {
     return this.userModel.find().exec();
+  }
+
+  async findOneOrCreate(input: CreateUserDto): Promise<User> {
+    const { id } = input;
+    const user = await this.userModel.findOne({ id }).exec();
+
+    if (Boolean(user)) {
+      return user;
+    } else {
+      return this.create(input);
+    }
   }
 }

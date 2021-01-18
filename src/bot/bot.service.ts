@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
-// import { UserService } from '../user/user.service';
+import { UserService } from '../user/user.service';
 
 import axios from 'axios';
 // eslint-disable-next-line
@@ -10,10 +9,9 @@ const _ = require('lodash');
 export class BotService {
   public bot: any = null;
 
-  // constructor(private readonly UserService: UserService) { }
+  constructor(private readonly UserService: UserService) { }
 
   onApplicationBootstrap() {
-    console.log('test');
     this.initialize();
   }
 
@@ -30,58 +28,100 @@ export class BotService {
     this.test();
   }
 
-  // TODO: customize
-  @Cron('0 00 18 * * *')
-  handleCron() {
-    this.getLatestMovies();
-  }
-
   // TODO: remove
   test() {
     this.bot.on('message', async (msg: any) => {
       const userId = msg.from.id;
+      const userMsg = msg.text;
+      const commands = [
+        { command: 'start', description: 'Активировать сервис бота' },
+        { command: 'help', description: 'Показать справку' },
+        { command: 'search', description: 'Выполнить поиск среди фильмов' },
+        {
+          command: 'get_popular_movies',
+          description: 'Список популярных фильмов',
+        },
+        {
+          command: 'get_now_playing_movies',
+          description: 'Список фильмов которые смотрят сейчас',
+        },
+      ];
 
-      this.bot.sendMessage(
-        userId,
-        '🔎 Выполняется поиск, пожалуйста, подождите...',
-      );
+      this.bot.setMyCommands(commands);
 
-      // await this.UserService.create({ id: userId });
-      // const result = this.UserService.findAll();
-      // console.log(result);
+      switch (userMsg) {
+        case '/start':
+          await this.UserService.findOneOrCreate({ id: userId });
+          this.bot.sendMessage(
+            userId,
+            `🤖 Здравствуйте. Я создан чтобы вы могли узнать о популярных фильмах. Список моих функций - /help`,
+          );
+          break;
 
-      const movies = await this.searchMovies(msg.text);
-      if (!_.get(movies, 'length')) {
-        this.bot.sendMessage(msg.from.id, 'Информация о фильме не найдена');
-      } else {
-        movies.forEach((movie: any) => {
-          this.sendPost(msg.from.id, movie);
-        });
+        case '/help':
+          let msg = `🤖 Вот что я умею:\n`;
+          commands.forEach((el: any) => {
+            msg += `/${el.command} - ${el.description}\n`;
+          });
+          this.bot.sendMessage(userId, msg);
+
+          break;
+
+        case '/search':
+          this.bot.sendMessage(userId, '📝 Введите текст для поиска фильма');
+          break;
+
+        case '/get_popular_movies':
+        case '/get_now_playing_movies':
+          this.bot.sendMessage(
+            userId,
+            '🔎 Выполняется поиск, пожалуйста, подождите...',
+          );
+          const urlPart =
+            userMsg === '/get_popular_movies'
+              ? 'popular'
+              : userMsg === '/get_now_playing_movies'
+                ? 'now_playing'
+                : 'popular';
+          const moviesList = await this.getMoviesList(urlPart);
+          moviesList.forEach((movie: any) => {
+            this.sendPost(userId, movie);
+          });
+          break;
+
+        default:
+          this.bot.sendMessage(
+            userId,
+            '🔎 Выполняется поиск, пожалуйста, подождите...',
+          );
+          const movies = await this.searchMovies(userMsg);
+          if (!_.get(movies, 'length')) {
+            this.bot.sendMessage(userId, '😿 Информация о фильме не найдена');
+          } else {
+            movies.forEach((movie: any) => {
+              this.sendPost(userId, movie);
+            });
+          }
+          break;
       }
     });
   }
 
-  async getLatestMovies() {
+  async getMoviesList(type = 'popular', voteMore = 5.5) {
     try {
-      // TODO: remove
-      // const chatId = '81465442';
-      const chatId = '';
-
       const result = await axios({
-        url: `/movie/popular`,
+        url: `/movie/${type}`,
         method: 'GET',
         params: { region: 'ru' },
       });
 
       const movies = await this.getProcessedMovies(
         _.get(result.data, `results`, []).filter(
-          (el) => el.vote_average >= 5.5,
+          (el) => el.vote_average >= voteMore,
         ),
       );
 
-      movies.forEach((movie: any) => {
-        this.sendPost(chatId, movie);
-      });
+      return Promise.resolve(movies);
     } catch (e) {
       Promise.reject(e);
     }
@@ -109,7 +149,7 @@ export class BotService {
     try {
       const movies = _.cloneDeep(items) || [];
       for (const movie of movies) {
-        movie.videos = await this.getMovies(movie.id);
+        movie.videos = await this.getMovieVideos(movie.id);
       }
       return Promise.resolve(movies);
     } catch (e) {
@@ -117,7 +157,7 @@ export class BotService {
     }
   }
 
-  async getMovies(id: number) {
+  async getMovieVideos(id: number) {
     try {
       const resultVideos = await axios.get(`/movie/${id}/videos`);
       const videos =
@@ -130,7 +170,7 @@ export class BotService {
     }
   }
 
-  sendPost(chatId: string, movie: any) {
+  sendPost(chatId: number, movie: any) {
     let markdown = ``;
 
     if (_.get(movie, 'release_date')) {
@@ -138,9 +178,9 @@ export class BotService {
       movie.year = `(${date.getFullYear()})`;
     }
     markdown = `*${movie.title} ${movie.year}*\n`;
-    if (movie.overview) {
-      markdown += `${movie.overview}\n`;
-    }
+    // if (movie.overview) {
+    //   markdown += `${movie.overview}\n`;
+    // }
     movie.videos.forEach((v: any) => {
       const name =
         typeof v.name === 'string'
