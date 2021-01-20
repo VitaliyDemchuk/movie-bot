@@ -7,4 +7,4 @@ import { UserModule } from '../user/user.module';
   providers: [BotService],
   exports: [BotService],
 })
-export class BotModule { }
+export class BotModule {}

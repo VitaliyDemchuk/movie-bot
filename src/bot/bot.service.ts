@@ -9,7 +9,7 @@ const _ = require('lodash');
 export class BotService {
   public bot: any = null;
 
-  constructor(private readonly UserService: UserService) { }
+  constructor(private readonly UserService: UserService) {}
 
   onApplicationBootstrap() {
     this.initialize();
@@ -84,8 +84,8 @@ export class BotService {
             userMsg === '/get_popular_movies'
               ? 'popular'
               : userMsg === '/get_now_playing_movies'
-                ? 'now_playing'
-                : 'popular';
+              ? 'now_playing'
+              : 'popular';
           const moviesList = await this.getMoviesList(urlPart);
 
           const currentUser = await this.UserService.get(userId);
