@@ -201,19 +201,17 @@ export class BotService {
       const date: Date = new Date(movie.release_date);
       movie.year = `(${date.getFullYear()})`;
     }
-    markdown = `*${movie.title} ${movie.year}*\n`;
-    // if (movie.overview) {
-    //   markdown += `${movie.overview}\n`;
-    // }
-    movie.videos.forEach((v: any) => {
-      const name =
-        typeof v.name === 'string'
-          ? v.name.replace(/\[|\]|\(|\)/g, '')
-          : 'Тизер';
-      markdown += `📺 [${name}](https://youtu.be/${v.key})\n`;
-    });
+
+    let titleLink = `📺`;
+    if (_.get(movie.videos, 0)) {
+      titleLink = `[📺](https://youtu.be/${_.get(movie.videos, '0.key')})`;
+    } else if (movie.poster_path) {
+      titleLink = `[📺](https://image.tmdb.org/t/p/original${movie.poster_path})`;
+    }
+    markdown = `${titleLink} *${movie.title} ${movie.year}*\n`;
+
     if (_.get(movie, 'vote_average')) {
-      markdown += `⭐ ${movie.vote_average}`;
+      markdown += `⭐ ${movie.vote_average}\n`;
     }
 
     this.bot.sendMessage(chatId, markdown, {
