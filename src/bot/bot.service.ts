@@ -172,8 +172,15 @@ export class BotService {
   async getProcessedMovies(items: any) {
     try {
       const movies = _.cloneDeep(items) || [];
+
+      const queries = [];
       for (const movie of movies) {
-        movie.videos = await this.getMovieVideos(movie.id);
+        queries.push(this.getMovieVideos(movie.id));
+      }
+      const resultVideo = await Promise.all(queries);
+
+      for (const [key] of Object.entries(movies)) {
+        movies[key].videos = resultVideo[key];
       }
       return Promise.resolve(movies);
     } catch (e) {
@@ -202,13 +209,14 @@ export class BotService {
       movie.year = `(${date.getFullYear()})`;
     }
 
-    let titleLink = `📺`;
+    let titleHideLink = `📺`;
     if (_.get(movie.videos, 0)) {
-      titleLink = `[📺](https://youtu.be/${_.get(movie.videos, '0.key')})`;
+      titleHideLink = `[📺](https://youtu.be/${_.get(movie.videos, '0.key')})`;
     } else if (movie.poster_path) {
-      titleLink = `[📺](https://image.tmdb.org/t/p/original${movie.poster_path})`;
+      titleHideLink = `[📺](https://image.tmdb.org/t/p/w500${movie.poster_path})`;
     }
-    markdown = `${titleLink} *${movie.title} ${movie.year}*\n`;
+    const titleSiteLink = `[${movie.title} ${movie.year}](https://www.themoviedb.org/movie/${movie.id})`;
+    markdown = `${titleHideLink} ${titleSiteLink}\n`;
 
     if (_.get(movie, 'vote_average')) {
       markdown += `⭐ ${movie.vote_average}\n`;
