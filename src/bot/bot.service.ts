@@ -44,74 +44,76 @@ export class BotService {
   }
 
   registerOnMessageListener() {
-    this.bot.on('message', async (msg: any) => {
-      const userId = msg.from.id;
-      const userMsg = msg.text;
+    this.bot.onText(/\/start/, async (msg: any) => {
+      const {
+        chat: { id },
+      } = msg;
 
-      switch (userMsg) {
-        case '/start':
-          await this.UserService.create({
-            id: userId,
-            viewedMovies: [],
-          });
-          this.bot.sendMessage(
-            userId,
-            `🤖 Здравствуйте. Я создан чтобы вы могли узнать о популярных фильмах. Список моих функций - /help`,
-          );
-          break;
-
-        case '/help':
-          let msg = `🤖 Вот что я умею:\n`;
-          this.commands.forEach((el: any) => {
-            msg += `/${el.command} - ${el.description}\n`;
-          });
-          this.bot.sendMessage(userId, msg);
-
-          break;
-
-        case '/get_popular_movies':
-        case '/get_now_playing_movies':
-          this.bot.sendMessage(
-            userId,
-            '🔎 Выполняется поиск, пожалуйста, подождите...',
-          );
-          const urlPart =
-            userMsg === '/get_popular_movies'
-              ? 'popular'
-              : userMsg === '/get_now_playing_movies'
-              ? 'now_playing'
-              : 'popular';
-          const moviesList = await this.getMoviesList(urlPart);
-
-          const currentUser = await this.UserService.get(userId);
-          if (currentUser) {
-            const viewedMovies = currentUser.viewedMovies || [];
-            let emptyResult = true;
-
-            moviesList.forEach((movie: any) => {
-              if (!viewedMovies.includes(movie.id)) {
-                this.sendPost(userId, movie);
-                viewedMovies.push(movie.id);
-                emptyResult = false;
-              }
-            });
-
-            await this.UserService.update({
-              id: userId,
-              viewedMovies,
-            });
-
-            if (emptyResult) {
-              this.bot.sendMessage(userId, '🤷‍♂️ Новых фильмов не обнаружено');
-            }
-          }
-          break;
-
-        default:
-          this.bot.sendMessage(userId, '🤖 Неизвестая команда');
-          break;
-      }
+      await this.UserService.create({
+        id,
+        viewedMovies: [],
+      });
+      this.bot.sendMessage(
+        id,
+        `🤖 Здравствуйте. Я создан чтобы вы могли узнать о популярных фильмах. Список моих функций - /help`,
+      );
     });
+
+    this.bot.onText(/\/help/, async (msg: any) => {
+      const {
+        chat: { id },
+      } = msg;
+
+      let response = `🤖 Вот что я умею:\n`;
+      this.commands.forEach((el: any) => {
+        response += `/${el.command} - ${el.description}\n`;
+      });
+      this.bot.sendMessage(id, response);
+    });
+
+    this.bot.onText(
+      /(\/get_popular_movies|\/get_now_playing_movies)/,
+      async (msg: any, [match]) => {
+        const {
+          chat: { id },
+        } = msg;
+
+        this.bot.sendMessage(
+          id,
+          '🔎 Выполняется поиск, пожалуйста, подождите...',
+        );
+        const urlPart =
+          match === '/get_popular_movies'
+            ? 'popular'
+            : match === '/get_now_playing_movies'
+            ? 'now_playing'
+            : 'popular';
+        const moviesList = await this.getMoviesList(urlPart);
+
+        const currentUser = await this.UserService.get(id);
+        if (currentUser) {
+          const viewedMovies = currentUser.viewedMovies || [];
+          let emptyResult = true;
+
+          moviesList.forEach((movie: any) => {
+            if (!viewedMovies.includes(movie.id)) {
+              this.sendPost(id, movie);
+              viewedMovies.push(movie.id);
+              emptyResult = false;
+            }
+          });
+
+          await this.UserService.update({
+            id: id,
+            viewedMovies,
+          });
+
+          if (emptyResult) {
+            this.bot.sendMessage(id, '🤷‍♂️ Новых фильмов не обнаружено');
+          }
+        }
+      },
+    );
   }
 
   async getMoviesList(type = 'popular', voteMore = 5.5) {
