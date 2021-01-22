@@ -8,46 +8,46 @@ const _ = require('lodash');
 @Injectable()
 export class BotService {
   public bot: any = null;
+  public commands: any = null;
 
-  constructor(private readonly UserService: UserService) {}
-
-  onApplicationBootstrap() {
+  constructor(private readonly UserService: UserService) {
     this.initialize();
+    this.registerBotCommands();
+    this.registerOnMessageListener();
   }
 
   initialize() {
-    // eslint-disable-next-line
-    const TelegramBot = require('node-telegram-bot-api');
-    this.bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-
     axios.defaults.baseURL = 'https://api.themoviedb.org/3';
     axios.defaults.params = {};
     axios.defaults.params.api_key = process.env.MOVIEDB_TOKEN;
     axios.defaults.params.language = 'ru';
 
-    this.test();
+    // eslint-disable-next-line
+    const TelegramBot = require('node-telegram-bot-api');
+    this.bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+    this.commands = [
+      {
+        command: 'get_popular_movies',
+        description: 'Популярно',
+      },
+      {
+        command: 'get_now_playing_movies',
+        description: 'Смотрят сейчас',
+      },
+      { command: 'search', description: 'Поиск' },
+      { command: 'start', description: 'Запуск бота' },
+      { command: 'help', description: 'Справка' },
+    ];
   }
 
-  // TODO: remove
-  test() {
+  registerBotCommands() {
+    this.bot.setMyCommands(this.commands);
+  }
+
+  registerOnMessageListener() {
     this.bot.on('message', async (msg: any) => {
       const userId = msg.from.id;
       const userMsg = msg.text;
-      const commands = [
-        { command: 'start', description: 'Активировать сервис бота' },
-        { command: 'help', description: 'Показать справку' },
-        { command: 'search', description: 'Выполнить поиск среди фильмов' },
-        {
-          command: 'get_popular_movies',
-          description: 'Список популярных фильмов',
-        },
-        {
-          command: 'get_now_playing_movies',
-          description: 'Список фильмов которые смотрят сейчас',
-        },
-      ];
-
-      this.bot.setMyCommands(commands);
 
       switch (userMsg) {
         case '/start':
@@ -63,7 +63,7 @@ export class BotService {
 
         case '/help':
           let msg = `🤖 Вот что я умею:\n`;
-          commands.forEach((el: any) => {
+          this.commands.forEach((el: any) => {
             msg += `/${el.command} - ${el.description}\n`;
           });
           this.bot.sendMessage(userId, msg);
@@ -110,7 +110,6 @@ export class BotService {
               this.bot.sendMessage(userId, '🤷‍♂️ Новых фильмов не обнаружено');
             }
           }
-
           break;
 
         default:
