@@ -34,7 +34,6 @@ export class BotService {
         command: 'get_now_playing_movies',
         description: 'Смотрят сейчас',
       },
-      { command: 'search', description: 'Поиск' },
       { command: 'start', description: 'Запуск бота' },
       { command: 'help', description: 'Справка' },
     ];
@@ -68,10 +67,6 @@ export class BotService {
           });
           this.bot.sendMessage(userId, msg);
 
-          break;
-
-        case '/search':
-          this.bot.sendMessage(userId, '📝 Введите текст для поиска фильма');
           break;
 
         case '/get_popular_movies':
@@ -113,18 +108,7 @@ export class BotService {
           break;
 
         default:
-          this.bot.sendMessage(
-            userId,
-            '🔎 Выполняется поиск, пожалуйста, подождите...',
-          );
-          const movies = await this.searchMovies(userMsg);
-          if (!_.get(movies, 'length')) {
-            this.bot.sendMessage(userId, '😿 Информация о фильме не найдена');
-          } else {
-            movies.forEach((movie: any) => {
-              this.sendPost(userId, movie);
-            });
-          }
+          this.bot.sendMessage(userId, '🤖 Неизвестая команда');
           break;
       }
     });
@@ -147,24 +131,6 @@ export class BotService {
       return Promise.resolve(movies);
     } catch (e) {
       Promise.reject(e);
-    }
-  }
-
-  async searchMovies(search: string) {
-    try {
-      const result = await axios({
-        url: `/search/movie`,
-        method: 'GET',
-        params: { query: search },
-      });
-
-      const movies = await this.getProcessedMovies(
-        _.get(result.data, `results`),
-      );
-
-      return Promise.resolve(movies);
-    } catch (e) {
-      return Promise.reject(e);
     }
   }
 
