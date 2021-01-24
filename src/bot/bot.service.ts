@@ -7,6 +7,8 @@ const _ = require('lodash');
 
 const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярные фильмы';
 const KEYBOARD_COMMAND_NOW_PLAYING_MOVIES = '🍿 Сейчас смотрят';
+const COMMAND_PREVIOS_PAGE = 'prev';
+const COMMAND_NEXT_PAGE = 'next';
 
 @Injectable()
 export class BotService {
@@ -15,7 +17,7 @@ export class BotService {
 
   constructor(private readonly UserService: UserService) {
     this.initialize();
-    this.registerOnMessageListener();
+    this.registerListeners();
   }
 
   initialize() {
@@ -43,7 +45,7 @@ export class BotService {
     });
   }
 
-  registerOnMessageListener() {
+  registerListeners() {
     this.bot.onText(/\/start/, async (msg: any) => {
       const {
         chat: { id },
@@ -51,7 +53,6 @@ export class BotService {
 
       await this.UserService.create({
         id,
-        viewedMovies: [],
       });
       this.initializeKeyboard(
         id,
@@ -65,11 +66,22 @@ export class BotService {
         const {
           chat: { id },
         } = msg;
-        this.sendMovies(id, 'popular');
-        this.initializeKeyboard(
+
+        this.bot.sendMessage(
           id,
           `🔎 Выполняется поиск, пожалуйста, подождите...`,
         );
+
+        const { markdown, inline_keyboard } = await this.getMoviesMsg(
+          'popular',
+        );
+        this.bot.sendMessage(id, markdown, {
+          parse_mode: 'markdown',
+          disable_web_page_preview: true,
+          reply_markup: {
+            inline_keyboard,
+          },
+        });
       },
     );
 
@@ -79,61 +91,137 @@ export class BotService {
         const {
           chat: { id },
         } = msg;
-        this.sendMovies(id, 'now_playing');
-        this.initializeKeyboard(
+
+        this.bot.sendMessage(
           id,
           `🔎 Выполняется поиск, пожалуйста, подождите...`,
         );
+
+        const { markdown, inline_keyboard } = await this.getMoviesMsg(
+          'now_playing',
+        );
+        this.bot.sendMessage(id, markdown, {
+          parse_mode: 'markdown',
+          disable_web_page_preview: true,
+          reply_markup: {
+            inline_keyboard,
+          },
+        });
       },
     );
+
+    this.bot.on('callback_query', async (query: any) => {
+      try {
+        const {
+          message: { chat, message_id },
+        } = query;
+        const data = JSON.parse(query.data);
+
+        switch (data.t) {
+          case COMMAND_NEXT_PAGE:
+          case COMMAND_PREVIOS_PAGE:
+            const { markdown, inline_keyboard } = await this.getMoviesMsg(
+              data.p.t,
+              { page: data.p.p },
+            );
+            this.bot.editMessageText(markdown, {
+              chat_id: chat.id,
+              parse_mode: 'markdown',
+              disable_web_page_preview: true,
+              message_id,
+              reply_markup: {
+                inline_keyboard,
+              },
+            });
+            break;
+        }
+
+        this.bot.answerCallbackQuery({ callback_query_id: query.id });
+      } catch (e) {
+        this.bot.answerCallbackQuery({
+          callback_query_id: query.id,
+          text: e.message,
+        });
+      }
+    });
   }
 
-  async sendMovies(id: number, type: string) {
+  async getMoviesMsg(type: string, params = { page: 1 }) {
     try {
-      const moviesList = await this.getMoviesList(type);
+      const movies = await this.getMoviesList(type, params);
+      let markdown = ``;
 
-      const currentUser = await this.UserService.get(id);
-      if (currentUser) {
-        const viewedMovies = currentUser.viewedMovies || [];
-        let emptyResult = true;
-
-        moviesList.forEach((movie: any) => {
-          if (!viewedMovies.includes(movie.id)) {
-            this.sendPost(id, movie);
-            viewedMovies.push(movie.id);
-            emptyResult = false;
-          }
-        });
-
-        await this.UserService.update({
-          id: id,
-          viewedMovies,
-        });
-
-        if (emptyResult) {
-          this.bot.sendMessage(id, '😿 Новых фильмов не обнаружено');
+      movies.results.forEach((movie: any) => {
+        if (_.get(movie, 'release_date')) {
+          const date: Date = new Date(movie.release_date);
+          movie.year = `(${date.getFullYear()})`;
         }
+        const titleSiteLink = `${movie.title} ${movie.year}`;
+        markdown += `${titleSiteLink}`;
+
+        if (_.get(movie, 'vote_average')) {
+          markdown += ` 🔥${movie.vote_average}`;
+        }
+
+        if (_.get(movie.videos, 0)) {
+          markdown += `\n[📽️ смотреть трейлер](https://youtu.be/${_.get(
+            movie.videos,
+            '0.key',
+          )})`;
+        }
+        markdown += '\n\n';
+      });
+
+      const keyboard = [];
+      if (movies.page > 1) {
+        keyboard.push({
+          text: '⬅️',
+          callback_data: JSON.stringify({
+            t: COMMAND_PREVIOS_PAGE,
+            p: {
+              p: movies.page - 1,
+              t: type,
+            },
+          }),
+        });
       }
+      if (movies.page < movies.total_pages) {
+        keyboard.push({
+          text: '➡️',
+          callback_data: JSON.stringify({
+            t: COMMAND_NEXT_PAGE,
+            p: {
+              p: movies.page + 1,
+              t: type,
+            },
+          }),
+        });
+      }
+
+      return Promise.resolve({
+        markdown,
+        inline_keyboard: [keyboard],
+      });
     } catch (e) {
-      console.error(e);
+      return Promise.reject(e);
     }
   }
 
-  async getMoviesList(type = 'popular', voteMore = 5.5) {
+  async getMoviesList(type = 'popular', params = { page: 1 }) {
     try {
       const result = await axios({
         url: `/movie/${type}`,
         method: 'GET',
-        params: { region: 'ru' },
+        params: { region: 'ru', ...params },
       });
-
       const movies = await this.getProcessedMovies(
-        _.get(result.data, `results`, []).filter(
-          (el) => el.vote_average >= voteMore && el.adult === false,
-        ),
+        _.get(result.data, `results`),
       );
 
-      return Promise.resolve(movies);
+      return Promise.resolve({
+        ...result.data,
+        results: movies,
+      });
     } catch (e) {
       Promise.reject(e);
     }
@@ -169,31 +257,5 @@ export class BotService {
     } catch (e) {
       return Promise.reject(e);
     }
-  }
-
-  sendPost(chatId: number, movie: any) {
-    let markdown = ``;
-
-    if (_.get(movie, 'release_date')) {
-      const date: Date = new Date(movie.release_date);
-      movie.year = `(${date.getFullYear()})`;
-    }
-
-    let titleHideLink = `📺`;
-    if (_.get(movie.videos, 0)) {
-      titleHideLink = `[📺](https://youtu.be/${_.get(movie.videos, '0.key')})`;
-    } else if (movie.poster_path) {
-      titleHideLink = `[📺](https://image.tmdb.org/t/p/w500${movie.poster_path})`;
-    }
-    const titleSiteLink = `[${movie.title} ${movie.year}](https://www.themoviedb.org/movie/${movie.id})`;
-    markdown = `${titleHideLink} ${titleSiteLink}\n`;
-
-    if (_.get(movie, 'vote_average')) {
-      markdown += `⭐ ${movie.vote_average}\n`;
-    }
-
-    this.bot.sendMessage(chatId, markdown, {
-      parse_mode: 'markdown',
-    });
   }
 }

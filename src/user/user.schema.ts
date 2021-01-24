@@ -7,9 +7,6 @@ export type UserDocument = User & Document;
 export class User {
   @Prop()
   id: number;
-
-  @Prop()
-  viewedMovies: Array<number>;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
