@@ -5,6 +5,9 @@ import axios from 'axios';
 // eslint-disable-next-line
 const _ = require('lodash');
 
+const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярные фильмы';
+const KEYBOARD_COMMAND_NOW_PLAYING_MOVIES = '🍿 Сейчас смотрят';
+
 @Injectable()
 export class BotService {
   public bot: any = null;
@@ -12,7 +15,6 @@ export class BotService {
 
   constructor(private readonly UserService: UserService) {
     this.initialize();
-    this.registerBotCommands();
     this.registerOnMessageListener();
   }
 
@@ -25,22 +27,20 @@ export class BotService {
     // eslint-disable-next-line
     const TelegramBot = require('node-telegram-bot-api');
     this.bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-    this.commands = [
-      {
-        command: 'get_popular_movies',
-        description: 'Популярно',
-      },
-      {
-        command: 'get_now_playing_movies',
-        description: 'Смотрят сейчас',
-      },
-      { command: 'start', description: 'Запуск бота' },
-      { command: 'help', description: 'Справка' },
-    ];
   }
 
-  registerBotCommands() {
-    this.bot.setMyCommands(this.commands);
+  initializeKeyboard(id: number, text: string) {
+    this.bot.sendMessage(id, text, {
+      reply_markup: {
+        keyboard: [
+          [
+            KEYBOARD_COMMAND_POPULAR_MOVIES,
+            KEYBOARD_COMMAND_NOW_PLAYING_MOVIES,
+          ],
+        ],
+        resize_keyboard: true,
+      },
+    });
   }
 
   registerOnMessageListener() {
@@ -53,67 +53,70 @@ export class BotService {
         id,
         viewedMovies: [],
       });
-      this.bot.sendMessage(
+      this.initializeKeyboard(
         id,
-        `🤖 Здравствуйте. Я создан чтобы вы могли узнать о популярных фильмах. Список моих функций - /help`,
+        `🤖 Здравствуйте. Я создан чтобы вы могли узнать о новых и популярных фильмах.`,
       );
     });
 
-    this.bot.onText(/\/help/, async (msg: any) => {
-      const {
-        chat: { id },
-      } = msg;
-
-      let response = `🤖 Вот что я умею:\n`;
-      this.commands.forEach((el: any) => {
-        response += `/${el.command} - ${el.description}\n`;
-      });
-      this.bot.sendMessage(id, response);
-    });
-
     this.bot.onText(
-      /(\/get_popular_movies|\/get_now_playing_movies)/,
-      async (msg: any, [match]) => {
+      new RegExp(KEYBOARD_COMMAND_POPULAR_MOVIES),
+      async (msg: any) => {
         const {
           chat: { id },
         } = msg;
-
-        this.bot.sendMessage(
+        this.sendMovies(id, 'popular');
+        this.initializeKeyboard(
           id,
-          '🔎 Выполняется поиск, пожалуйста, подождите...',
+          `🔎 Выполняется поиск, пожалуйста, подождите...`,
         );
-        const urlPart =
-          match === '/get_popular_movies'
-            ? 'popular'
-            : match === '/get_now_playing_movies'
-            ? 'now_playing'
-            : 'popular';
-        const moviesList = await this.getMoviesList(urlPart);
-
-        const currentUser = await this.UserService.get(id);
-        if (currentUser) {
-          const viewedMovies = currentUser.viewedMovies || [];
-          let emptyResult = true;
-
-          moviesList.forEach((movie: any) => {
-            if (!viewedMovies.includes(movie.id)) {
-              this.sendPost(id, movie);
-              viewedMovies.push(movie.id);
-              emptyResult = false;
-            }
-          });
-
-          await this.UserService.update({
-            id: id,
-            viewedMovies,
-          });
-
-          if (emptyResult) {
-            this.bot.sendMessage(id, '🤷‍♂️ Новых фильмов не обнаружено');
-          }
-        }
       },
     );
+
+    this.bot.onText(
+      new RegExp(KEYBOARD_COMMAND_NOW_PLAYING_MOVIES),
+      async (msg: any) => {
+        const {
+          chat: { id },
+        } = msg;
+        this.sendMovies(id, 'now_playing');
+        this.initializeKeyboard(
+          id,
+          `🔎 Выполняется поиск, пожалуйста, подождите...`,
+        );
+      },
+    );
+  }
+
+  async sendMovies(id: number, type: string) {
+    try {
+      const moviesList = await this.getMoviesList(type);
+
+      const currentUser = await this.UserService.get(id);
+      if (currentUser) {
+        const viewedMovies = currentUser.viewedMovies || [];
+        let emptyResult = true;
+
+        moviesList.forEach((movie: any) => {
+          if (!viewedMovies.includes(movie.id)) {
+            this.sendPost(id, movie);
+            viewedMovies.push(movie.id);
+            emptyResult = false;
+          }
+        });
+
+        await this.UserService.update({
+          id: id,
+          viewedMovies,
+        });
+
+        if (emptyResult) {
+          this.bot.sendMessage(id, '😿 Новых фильмов не обнаружено');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   async getMoviesList(type = 'popular', voteMore = 5.5) {
@@ -126,7 +129,7 @@ export class BotService {
 
       const movies = await this.getProcessedMovies(
         _.get(result.data, `results`, []).filter(
-          (el) => el.vote_average >= voteMore,
+          (el) => el.vote_average >= voteMore && el.adult === false,
         ),
       );
 
