@@ -53,6 +53,7 @@ export class BotService {
 
       await this.UserService.create({
         id,
+        viewedMovies: [],
       });
       this.initializeKeyboard(
         id,
@@ -65,6 +66,7 @@ export class BotService {
       async (msg: any) => {
         const {
           chat: { id },
+          from: { id: userId },
         } = msg;
 
         this.bot.sendMessage(
@@ -74,6 +76,7 @@ export class BotService {
 
         const { markdown, inline_keyboard } = await this.getMoviesMsg(
           'popular',
+          userId,
         );
         this.bot.sendMessage(id, markdown, {
           parse_mode: 'markdown',
@@ -90,6 +93,7 @@ export class BotService {
       async (msg: any) => {
         const {
           chat: { id },
+          from: { id: userId },
         } = msg;
 
         this.bot.sendMessage(
@@ -99,6 +103,7 @@ export class BotService {
 
         const { markdown, inline_keyboard } = await this.getMoviesMsg(
           'now_playing',
+          userId,
         );
         this.bot.sendMessage(id, markdown, {
           parse_mode: 'markdown',
@@ -114,7 +119,9 @@ export class BotService {
       try {
         const {
           message: { chat, message_id },
+          from: { id: userId },
         } = query;
+
         const data = JSON.parse(query.data);
 
         switch (data.t) {
@@ -122,6 +129,7 @@ export class BotService {
           case COMMAND_PREVIOS_PAGE:
             const { markdown, inline_keyboard } = await this.getMoviesMsg(
               data.p.t,
+              userId,
               { page: data.p.p },
             );
             this.bot.editMessageText(markdown, {
@@ -146,8 +154,11 @@ export class BotService {
     });
   }
 
-  async getMoviesMsg(type: string, params = { page: 1 }) {
+  async getMoviesMsg(type: string, userId: number, params = { page: 1 }) {
     try {
+      const currentUser = await this.UserService.get(userId);
+      const viewedMovies = _.get(currentUser, 'viewedMovies', []);
+
       const movies = await this.getMoviesList(type, params);
       let markdown = ``;
 
@@ -157,7 +168,12 @@ export class BotService {
           movie.year = `(${date.getFullYear()})`;
         }
         const titleSiteLink = `${movie.title} ${movie.year}`;
-        markdown += `${titleSiteLink}`;
+        if (!viewedMovies.includes(movie.id)) {
+          markdown += `🆕 *${titleSiteLink}*`;
+          viewedMovies.push(movie.id);
+        } else {
+          markdown += `${titleSiteLink}`;
+        }
 
         if (_.get(movie, 'vote_average')) {
           markdown += ` 🔥${movie.vote_average}`;
@@ -197,6 +213,11 @@ export class BotService {
           }),
         });
       }
+
+      await this.UserService.update({
+        id: userId,
+        viewedMovies,
+      });
 
       return Promise.resolve({
         markdown,
