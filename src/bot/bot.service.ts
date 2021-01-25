@@ -169,7 +169,7 @@ export class BotService {
         }
         const titleSiteLink = `${movie.title} ${movie.year}`;
         if (!viewedMovies.includes(movie.id)) {
-          markdown += `🆕 *${titleSiteLink}*`;
+          markdown += `‼️ *${titleSiteLink}*`;
           viewedMovies.push(movie.id);
         } else {
           markdown += `${titleSiteLink}`;
@@ -180,7 +180,7 @@ export class BotService {
         }
 
         if (_.get(movie.videos, 0)) {
-          markdown += `\n[📽️ смотреть трейлер](https://youtu.be/${_.get(
+          markdown += `\n[смотреть трейлер](https://youtu.be/${_.get(
             movie.videos,
             '0.key',
           )})`;
