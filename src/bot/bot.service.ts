@@ -5,10 +5,14 @@ import axios from 'axios';
 // eslint-disable-next-line
 const _ = require('lodash');
 
+const ENDPOINT_API = 'https://api.themoviedb.org/3';
+const ENDPOINT_WEBSITE = 'https://www.themoviedb.org';
+const COMMAND_START = '/start';
+const COMMAND_MOVIE_DETAIL = '/movie([1-9]+)';
 const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярные фильмы';
 const KEYBOARD_COMMAND_NOW_PLAYING_MOVIES = '🍿 Сейчас смотрят';
-const COMMAND_PREVIOS_PAGE = 'prev';
-const COMMAND_NEXT_PAGE = 'next';
+const INLINE_COMMAND_PREVIOS_PAGE = 'prev';
+const INLINE_COMMAND_NEXT_PAGE = 'next';
 
 @Injectable()
 export class BotService {
@@ -21,7 +25,7 @@ export class BotService {
   }
 
   initialize() {
-    axios.defaults.baseURL = 'https://api.themoviedb.org/3';
+    axios.defaults.baseURL = ENDPOINT_API;
     axios.defaults.params = {};
     axios.defaults.params.api_key = process.env.MOVIEDB_TOKEN;
     axios.defaults.params.language = 'ru';
@@ -46,7 +50,7 @@ export class BotService {
   }
 
   registerListeners() {
-    this.bot.onText(/\/start/, async (msg: any) => {
+    this.bot.onText(new RegExp(COMMAND_START), async (msg: any) => {
       const {
         chat: { id },
       } = msg;
@@ -57,7 +61,7 @@ export class BotService {
       });
       this.initializeKeyboard(
         id,
-        `🤖 Здравствуйте. Я создан чтобы вы могли узнать о новых и популярных фильмах.`,
+        `🤖 Здравствуйте. Я создан чтобы вы могли узнать о популярных фильмах.`,
       );
     });
 
@@ -115,6 +119,37 @@ export class BotService {
       },
     );
 
+    this.bot.onText(
+      new RegExp(COMMAND_MOVIE_DETAIL),
+      async (msg: any, [prefix, id]) => {
+        const {
+          chat: { id: chatId },
+        } = msg;
+
+        try {
+          if (!id) {
+            return;
+          }
+
+          const result: any = await Promise.all([
+            axios.get(`/movie/${id}?append_to_response=videos`),
+            this.getMovieVideos(id),
+          ]);
+          const movie = {
+            ..._.get(result, `0.data`),
+            videos: _.get(result, `1`),
+          };
+          this.sendPost(chatId, movie);
+        } catch (e) {
+          console.error(e.message);
+          this.bot.sendMessage(
+            chatId,
+            `🤖 Извините, произошла непредвиденная ошибка.`,
+          );
+        }
+      },
+    );
+
     this.bot.on('callback_query', async (query: any) => {
       try {
         const {
@@ -125,8 +160,8 @@ export class BotService {
         const data = JSON.parse(query.data);
 
         switch (data.t) {
-          case COMMAND_NEXT_PAGE:
-          case COMMAND_PREVIOS_PAGE:
+          case INLINE_COMMAND_NEXT_PAGE:
+          case INLINE_COMMAND_PREVIOS_PAGE:
             const { markdown, inline_keyboard } = await this.getMoviesMsg(
               data.p.t,
               userId,
@@ -154,6 +189,57 @@ export class BotService {
     });
   }
 
+  sendPost(chatId: number, movie: any) {
+    let markdown = ``;
+
+    if (_.get(movie, 'release_date')) {
+      const date: Date = new Date(movie.release_date);
+      movie.year = `(${date.getFullYear()})`;
+    }
+
+    let titleHideLink = `📺`;
+    if (_.get(movie.videos, 0)) {
+      titleHideLink = `[📺](https://youtu.be/${_.get(movie.videos, '0.key')})`;
+    } else if (movie.poster_path) {
+      titleHideLink = `[📺](https://image.tmdb.org/t/p/w500${movie.poster_path})`;
+    }
+    markdown = `${titleHideLink} *${movie.title} ${movie.year}*`;
+    if (_.get(movie, 'vote_average')) {
+      markdown += ` 🔥${movie.vote_average}`;
+    }
+
+    markdown += `\n\n`;
+
+    if (_.get(movie, 'genres.length')) {
+      const genres = movie.genres.map((e) => _.get(e, 'name')).join(', ');
+      markdown += `*Жанр:* ${genres}\n`;
+    }
+
+    if (_.get(movie, 'overview')) {
+      markdown += `*Описание:* ${movie.overview}\n`;
+    }
+
+    const keyboard = [
+      {
+        text: '🔗 На сайт',
+        url: `${ENDPOINT_WEBSITE}/movie/${movie.id}`,
+      },
+    ];
+    if (_.get(movie.videos, '0.key')) {
+      keyboard.push({
+        text: '🎬 Трейлер',
+        url: `https://youtu.be/${_.get(movie.videos, '0.key')}`,
+      });
+    }
+
+    this.bot.sendMessage(chatId, markdown, {
+      parse_mode: 'markdown',
+      reply_markup: {
+        inline_keyboard: [keyboard],
+      },
+    });
+  }
+
   async getMoviesMsg(type: string, userId: number, params = { page: 1 }) {
     try {
       const currentUser = await this.UserService.get(userId);
@@ -169,7 +255,7 @@ export class BotService {
         }
         const titleSiteLink = `${movie.title} ${movie.year}`;
         if (!viewedMovies.includes(movie.id)) {
-          markdown += `‼️ *${titleSiteLink}*`;
+          markdown += `🆕 *${titleSiteLink}*`;
           viewedMovies.push(movie.id);
         } else {
           markdown += `${titleSiteLink}`;
@@ -179,12 +265,14 @@ export class BotService {
           markdown += ` 🔥${movie.vote_average}`;
         }
 
+        markdown += `\nДетали: /movie${movie.id}`;
         if (_.get(movie.videos, 0)) {
-          markdown += `\n[смотреть трейлер](https://youtu.be/${_.get(
+          markdown += `   Трейлер: [просмотр](https://youtu.be/${_.get(
             movie.videos,
             '0.key',
           )})`;
         }
+
         markdown += '\n\n';
       });
 
@@ -193,7 +281,7 @@ export class BotService {
         keyboard.push({
           text: '⬅️',
           callback_data: JSON.stringify({
-            t: COMMAND_PREVIOS_PAGE,
+            t: INLINE_COMMAND_PREVIOS_PAGE,
             p: {
               p: movies.page - 1,
               t: type,
@@ -205,7 +293,7 @@ export class BotService {
         keyboard.push({
           text: '➡️',
           callback_data: JSON.stringify({
-            t: COMMAND_NEXT_PAGE,
+            t: INLINE_COMMAND_NEXT_PAGE,
             p: {
               p: movies.page + 1,
               t: type,
