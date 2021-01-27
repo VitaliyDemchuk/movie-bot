@@ -8,7 +8,7 @@ const _ = require('lodash');
 const ENDPOINT_API = 'https://api.themoviedb.org/3';
 const ENDPOINT_WEBSITE = 'https://www.themoviedb.org';
 const COMMAND_START = '/start';
-const COMMAND_MOVIE_DETAIL = '/movie([1-9]+)';
+const COMMAND_MOVIE_DETAIL = '/movie([0-9]+)';
 const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярные фильмы';
 const KEYBOARD_COMMAND_NOW_PLAYING_MOVIES = '🍿 Сейчас смотрят';
 const INLINE_COMMAND_PREVIOS_PAGE = 'prev';
@@ -132,7 +132,7 @@ export class BotService {
           }
 
           const result: any = await Promise.all([
-            axios.get(`/movie/${id}?append_to_response=videos`),
+            axios.get(`/movie/${id}`),
             this.getMovieVideos(id),
           ]);
           const movie = {
