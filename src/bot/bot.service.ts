@@ -212,11 +212,11 @@ export class BotService {
 
     if (_.get(movie, 'genres.length')) {
       const genres = movie.genres.map((e) => _.get(e, 'name')).join(', ');
-      markdown += `*Жанр:* ${genres}\n`;
+      markdown += `*Жанр:* ${genres}\n\n`;
     }
 
     if (_.get(movie, 'overview')) {
-      markdown += `*Описание:* ${movie.overview}\n`;
+      markdown += `*Описание:* ${movie.overview}`;
     }
 
     const keyboard = [
@@ -267,7 +267,7 @@ export class BotService {
 
         markdown += `\nДетали: /movie${movie.id}`;
         if (_.get(movie.videos, 0)) {
-          markdown += `   Трейлер: [просмотр](https://youtu.be/${_.get(
+          markdown += `\nТрейлер: [просмотр](https://youtu.be/${_.get(
             movie.videos,
             '0.key',
           )})`;
