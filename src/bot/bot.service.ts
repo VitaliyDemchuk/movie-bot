@@ -205,11 +205,31 @@ export class BotService {
               ..._.get(result, `0.data`),
               videos: _.get(result, `1`),
             };
+
+            // Update user
+            const currentUser = await this.UserService.get(userId);
+            const favoriteMovies = _.get(currentUser, 'favoriteMovies', []);
+
+            const index = favoriteMovies.indexOf(_.get(movie, 'id'));
+            if (data.t === INLINE_COMMAND_FAVORITE_ADD && index === -1) {
+              favoriteMovies.push(_.get(movie, 'id'));
+            } else if (
+              data.t === INLINE_COMMAND_FAVORITE_DELETE &&
+              index > -1
+            ) {
+              favoriteMovies.splice(index, 1);
+            }
+
+            await this.UserService.update(
+              Object.assign(currentUser, { favoriteMovies }),
+            );
+
+            // Update msg
             const {
               markdown: movieMarkdown,
               inline_keyboard: movieKeyboard,
-              isFavorite,
             } = await this.getMovieMsg(movie, userId);
+
             this.bot.editMessageText(movieMarkdown, {
               chat_id: chat.id,
               parse_mode: 'markdown',
@@ -220,9 +240,10 @@ export class BotService {
             });
             this.bot.answerCallbackQuery({
               callback_query_id: query.id,
-              text: isFavorite
-                ? 'Добавлено в избранное'
-                : 'Удалено из избранного',
+              text:
+                data.t === INLINE_COMMAND_FAVORITE_ADD
+                  ? 'Добавлено в избранное'
+                  : 'Удалено из избранного',
             });
             break;
 
@@ -244,9 +265,7 @@ export class BotService {
       let markdown = ``;
       const currentUser = await this.UserService.get(userId);
       const favoriteMovies = _.get(currentUser, 'favoriteMovies', []);
-      const isFavorite = _.get(currentUser, 'favoriteMovies', []).includes(
-        _.get(movie, 'id'),
-      );
+      const isFavorite = favoriteMovies.includes(_.get(movie, 'id'));
       const keyboard: any = [
         {
           text: '🔗 На сайт',
@@ -264,7 +283,9 @@ export class BotService {
       keyboard.push({
         text: isFavorite ? '✖️ Удалить' : '⭐ В избранное',
         callback_data: JSON.stringify({
-          t: INLINE_COMMAND_FAVORITE_ADD,
+          t: isFavorite
+            ? INLINE_COMMAND_FAVORITE_DELETE
+            : INLINE_COMMAND_FAVORITE_ADD,
           p: {
             i: _.get(movie, 'id'),
           },
@@ -303,23 +324,9 @@ export class BotService {
         markdown += `*Описание:* ${movie.overview}`;
       }
 
-      // Update user
-      if (isFavorite) {
-        const index = _.get(currentUser, 'favoriteMovies', []).indexOf(
-          _.get(movie, 'id'),
-        );
-        favoriteMovies.splice(index, 1);
-      } else {
-        favoriteMovies.push(_.get(movie, 'id'));
-      }
-      await this.UserService.update(
-        Object.assign(currentUser, { favoriteMovies }),
-      );
-
       return Promise.resolve({
         markdown,
         inline_keyboard: [keyboard],
-        isFavorite,
       });
     } catch (e) {
       return Promise.reject(e);
@@ -329,12 +336,15 @@ export class BotService {
   async getMovieListMsg(type: string, userId: number, params = { page: 1 }) {
     try {
       const currentUser = await this.UserService.get(userId);
+      const favoriteMovies = _.get(currentUser, 'favoriteMovies', []);
       const viewedMovies = _.get(currentUser, 'viewedMovies', []);
 
       const movies = await this.getMoviesList(type, params);
       let markdown = ``;
 
       movies.results.forEach((movie: any) => {
+        const isFavorite = favoriteMovies.includes(_.get(movie, 'id'));
+
         if (_.get(movie, 'release_date')) {
           const date: Date = new Date(movie.release_date);
           movie._year = `(${date.getFullYear()})`;
@@ -344,7 +354,7 @@ export class BotService {
           markdown += `🆕 *${titleSiteLink}*`;
           viewedMovies.push(movie.id);
         } else {
-          markdown += `${titleSiteLink}`;
+          markdown += `${isFavorite ? '⭐ ' : ''}${titleSiteLink}`;
         }
 
         if (_.get(movie, 'vote_average')) {
