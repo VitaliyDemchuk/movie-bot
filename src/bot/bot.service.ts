@@ -13,6 +13,8 @@ const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярные фильмы'
 const KEYBOARD_COMMAND_NOW_PLAYING_MOVIES = '🍿 Сейчас смотрят';
 const INLINE_COMMAND_PREVIOS_PAGE = 'prev';
 const INLINE_COMMAND_NEXT_PAGE = 'next';
+const INLINE_COMMAND_FAVORITE_ADD = 'favorite_add';
+const INLINE_COMMAND_FAVORITE_DELETE = 'favorite_delete';
 
 @Injectable()
 export class BotService {
@@ -58,6 +60,7 @@ export class BotService {
       await this.UserService.create({
         id,
         viewedMovies: [],
+        favoriteMovies: [],
       });
       this.initializeKeyboard(
         id,
@@ -78,7 +81,7 @@ export class BotService {
           `🔎 Выполняется поиск, пожалуйста, подождите...`,
         );
 
-        const { markdown, inline_keyboard } = await this.getMoviesMsg(
+        const { markdown, inline_keyboard } = await this.getMovieListMsg(
           'popular',
           userId,
         );
@@ -105,7 +108,7 @@ export class BotService {
           `🔎 Выполняется поиск, пожалуйста, подождите...`,
         );
 
-        const { markdown, inline_keyboard } = await this.getMoviesMsg(
+        const { markdown, inline_keyboard } = await this.getMovieListMsg(
           'now_playing',
           userId,
         );
@@ -124,6 +127,7 @@ export class BotService {
       async (msg: any, [prefix, id]) => {
         const {
           chat: { id: chatId },
+          from: { id: userId },
         } = msg;
 
         try {
@@ -139,7 +143,17 @@ export class BotService {
             ..._.get(result, `0.data`),
             videos: _.get(result, `1`),
           };
-          this.sendPost(chatId, movie);
+          const { markdown, inline_keyboard } = await this.getMovieMsg(
+            movie,
+            userId,
+          );
+
+          this.bot.sendMessage(chatId, markdown, {
+            parse_mode: 'markdown',
+            reply_markup: {
+              inline_keyboard,
+            },
+          });
         } catch (e) {
           console.error(e.message);
           this.bot.sendMessage(
@@ -162,10 +176,12 @@ export class BotService {
         switch (data.t) {
           case INLINE_COMMAND_NEXT_PAGE:
           case INLINE_COMMAND_PREVIOS_PAGE:
-            const { markdown, inline_keyboard } = await this.getMoviesMsg(
+            const { markdown, inline_keyboard } = await this.getMovieListMsg(
               data.p.t,
               userId,
-              { page: data.p.p },
+              {
+                page: data.p.p,
+              },
             );
             this.bot.editMessageText(markdown, {
               chat_id: chat.id,
@@ -176,10 +192,44 @@ export class BotService {
                 inline_keyboard,
               },
             });
+            this.bot.answerCallbackQuery({ callback_query_id: query.id });
+            break;
+
+          case INLINE_COMMAND_FAVORITE_ADD:
+          case INLINE_COMMAND_FAVORITE_DELETE:
+            const result: any = await Promise.all([
+              axios.get(`/movie/${data.p.i}`),
+              this.getMovieVideos(data.p.i),
+            ]);
+            const movie = {
+              ..._.get(result, `0.data`),
+              videos: _.get(result, `1`),
+            };
+            const {
+              markdown: movieMarkdown,
+              inline_keyboard: movieKeyboard,
+              isFavorite,
+            } = await this.getMovieMsg(movie, userId);
+            this.bot.editMessageText(movieMarkdown, {
+              chat_id: chat.id,
+              parse_mode: 'markdown',
+              message_id,
+              reply_markup: {
+                inline_keyboard: movieKeyboard,
+              },
+            });
+            this.bot.answerCallbackQuery({
+              callback_query_id: query.id,
+              text: isFavorite
+                ? 'Добавлено в избранное'
+                : 'Удалено из избранного',
+            });
+            break;
+
+          default:
+            this.bot.answerCallbackQuery({ callback_query_id: query.id });
             break;
         }
-
-        this.bot.answerCallbackQuery({ callback_query_id: query.id });
       } catch (e) {
         this.bot.answerCallbackQuery({
           callback_query_id: query.id,
@@ -189,58 +239,94 @@ export class BotService {
     });
   }
 
-  sendPost(chatId: number, movie: any) {
-    let markdown = ``;
+  async getMovieMsg(movie: any, userId: number) {
+    try {
+      let markdown = ``;
+      const currentUser = await this.UserService.get(userId);
+      const favoriteMovies = _.get(currentUser, 'favoriteMovies', []);
+      const isFavorite = _.get(currentUser, 'favoriteMovies', []).includes(
+        _.get(movie, 'id'),
+      );
+      const keyboard: any = [
+        {
+          text: '🔗 На сайт',
+          url: `${ENDPOINT_WEBSITE}/movie/${movie.id}`,
+        },
+      ];
 
-    if (_.get(movie, 'release_date')) {
-      const date: Date = new Date(movie.release_date);
-      movie.year = `(${date.getFullYear()})`;
-    }
-
-    let titleHideLink = `📺`;
-    if (_.get(movie.videos, 0)) {
-      titleHideLink = `[📺](https://youtu.be/${_.get(movie.videos, '0.key')})`;
-    } else if (movie.poster_path) {
-      titleHideLink = `[📺](https://image.tmdb.org/t/p/w500${movie.poster_path})`;
-    }
-    markdown = `${titleHideLink} *${movie.title} ${movie.year}*`;
-    if (_.get(movie, 'vote_average')) {
-      markdown += ` 🔥${movie.vote_average}`;
-    }
-
-    markdown += `\n\n`;
-
-    if (_.get(movie, 'genres.length')) {
-      const genres = movie.genres.map((e) => _.get(e, 'name')).join(', ');
-      markdown += `*Жанр:* ${genres}\n\n`;
-    }
-
-    if (_.get(movie, 'overview')) {
-      markdown += `*Описание:* ${movie.overview}`;
-    }
-
-    const keyboard = [
-      {
-        text: '🔗 На сайт',
-        url: `${ENDPOINT_WEBSITE}/movie/${movie.id}`,
-      },
-    ];
-    if (_.get(movie.videos, '0.key')) {
+      // Post keyboard
+      if (_.get(movie.videos, '0.key')) {
+        keyboard.push({
+          text: '🎬 Трейлер',
+          url: `https://youtu.be/${_.get(movie.videos, '0.key')}`,
+        });
+      }
       keyboard.push({
-        text: '🎬 Трейлер',
-        url: `https://youtu.be/${_.get(movie.videos, '0.key')}`,
+        text: isFavorite ? '✖️ Удалить' : '⭐ В избранное',
+        callback_data: JSON.stringify({
+          t: INLINE_COMMAND_FAVORITE_ADD,
+          p: {
+            i: _.get(movie, 'id'),
+          },
+        }),
       });
-    }
 
-    this.bot.sendMessage(chatId, markdown, {
-      parse_mode: 'markdown',
-      reply_markup: {
+      // Post content
+      if (_.get(movie, 'release_date')) {
+        const date: Date = new Date(movie.release_date);
+        movie._year = `(${date.getFullYear()})`;
+      }
+
+      let titleHideLink = ``;
+      const titleIcon = isFavorite ? '⭐' : '📺';
+      if (_.get(movie.videos, 0)) {
+        titleHideLink = `[${titleIcon}](https://youtu.be/${_.get(
+          movie.videos,
+          '0.key',
+        )})`;
+      } else if (_.get(movie, 'poster_path')) {
+        titleHideLink = `[${titleIcon}](https://image.tmdb.org/t/p/w500${movie.poster_path})`;
+      }
+      markdown = `${titleHideLink} *${_.get(movie, 'title')} ${movie._year}*`;
+      if (_.get(movie, 'vote_average')) {
+        markdown += ` 🔥${movie.vote_average}`;
+      }
+
+      markdown += `\n\n`;
+
+      if (_.get(movie, 'genres.length')) {
+        const genres = movie.genres.map((e) => _.get(e, 'name')).join(', ');
+        markdown += `*Жанр:* ${genres}\n\n`;
+      }
+
+      if (_.get(movie, 'overview')) {
+        markdown += `*Описание:* ${movie.overview}`;
+      }
+
+      // Update user
+      if (isFavorite) {
+        const index = _.get(currentUser, 'favoriteMovies', []).indexOf(
+          _.get(movie, 'id'),
+        );
+        favoriteMovies.splice(index, 1);
+      } else {
+        favoriteMovies.push(_.get(movie, 'id'));
+      }
+      await this.UserService.update(
+        Object.assign(currentUser, { favoriteMovies }),
+      );
+
+      return Promise.resolve({
+        markdown,
         inline_keyboard: [keyboard],
-      },
-    });
+        isFavorite,
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
-  async getMoviesMsg(type: string, userId: number, params = { page: 1 }) {
+  async getMovieListMsg(type: string, userId: number, params = { page: 1 }) {
     try {
       const currentUser = await this.UserService.get(userId);
       const viewedMovies = _.get(currentUser, 'viewedMovies', []);
@@ -251,9 +337,9 @@ export class BotService {
       movies.results.forEach((movie: any) => {
         if (_.get(movie, 'release_date')) {
           const date: Date = new Date(movie.release_date);
-          movie.year = `(${date.getFullYear()})`;
+          movie._year = `(${date.getFullYear()})`;
         }
-        const titleSiteLink = `${movie.title} ${movie.year}`;
+        const titleSiteLink = `${movie.title} ${movie._year}`;
         if (!viewedMovies.includes(movie.id)) {
           markdown += `🆕 *${titleSiteLink}*`;
           viewedMovies.push(movie.id);
@@ -302,10 +388,9 @@ export class BotService {
         });
       }
 
-      await this.UserService.update({
-        id: userId,
-        viewedMovies,
-      });
+      await this.UserService.update(
+        Object.assign(currentUser, { viewedMovies }),
+      );
 
       return Promise.resolve({
         markdown,

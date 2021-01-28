@@ -10,6 +10,9 @@ export class User {
 
   @Prop()
   viewedMovies: Array<number>;
+
+  @Prop()
+  favoriteMovies: Array<number>;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
