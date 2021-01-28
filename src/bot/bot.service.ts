@@ -9,8 +9,9 @@ const ENDPOINT_API = 'https://api.themoviedb.org/3';
 const ENDPOINT_WEBSITE = 'https://www.themoviedb.org';
 const COMMAND_START = '/start';
 const COMMAND_MOVIE_DETAIL = '/movie([0-9]+)';
-const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярные фильмы';
+const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярно';
 const KEYBOARD_COMMAND_NOW_PLAYING_MOVIES = '🍿 Сейчас смотрят';
+const KEYBOARD_COMMAND_FAVORITE_MOVIES = '⭐ Избранные';
 const INLINE_COMMAND_PREVIOS_PAGE = 'prev';
 const INLINE_COMMAND_NEXT_PAGE = 'next';
 const INLINE_COMMAND_FAVORITE_ADD = 'favorite_add';
@@ -45,6 +46,7 @@ export class BotService {
             KEYBOARD_COMMAND_POPULAR_MOVIES,
             KEYBOARD_COMMAND_NOW_PLAYING_MOVIES,
           ],
+          [KEYBOARD_COMMAND_FAVORITE_MOVIES],
         ],
         resize_keyboard: true,
       },
@@ -110,6 +112,33 @@ export class BotService {
 
         const { markdown, inline_keyboard } = await this.getMovieListMsg(
           'now_playing',
+          userId,
+        );
+        this.bot.sendMessage(id, markdown, {
+          parse_mode: 'markdown',
+          disable_web_page_preview: true,
+          reply_markup: {
+            inline_keyboard,
+          },
+        });
+      },
+    );
+
+    this.bot.onText(
+      new RegExp(KEYBOARD_COMMAND_FAVORITE_MOVIES),
+      async (msg: any) => {
+        const {
+          chat: { id },
+          from: { id: userId },
+        } = msg;
+
+        this.bot.sendMessage(
+          id,
+          `🔎 Выполняется поиск, пожалуйста, подождите...`,
+        );
+
+        const { markdown, inline_keyboard } = await this.getMovieListMsg(
+          '_favorite',
           userId,
         );
         this.bot.sendMessage(id, markdown, {
@@ -338,9 +367,42 @@ export class BotService {
       const currentUser = await this.UserService.get(userId);
       const favoriteMovies = _.get(currentUser, 'favoriteMovies', []);
       const viewedMovies = _.get(currentUser, 'viewedMovies', []);
-
-      const movies = await this.getMoviesList(type, params);
       let markdown = ``;
+      let movies = {
+        page: 1,
+        total_pages: 1,
+        results: [],
+      };
+
+      switch (type) {
+        case 'popular':
+        case 'now_playing':
+          movies = await this.getMoviesList(type, params);
+          break;
+
+        case '_favorite':
+          const size = 10;
+          const page = _.get(params, 'page', 1);
+          const startPos = (page - 1) * size;
+          const endPos = page * size;
+          const currentListid = favoriteMovies.slice(startPos, endPos);
+
+          const queries = [];
+          _.forEach(currentListid, (id: number) => {
+            queries.push(axios.get(`/movie/${id}`));
+          });
+          const result = await Promise.all(queries);
+
+          movies.results = _.map(result, (response) => _.get(response, 'data'));
+          movies.page = page;
+          movies.total_pages = _.get(favoriteMovies, 'length')
+            ? Math.ceil(favoriteMovies.length / size)
+            : 0;
+          break;
+
+        default:
+          break;
+      }
 
       movies.results.forEach((movie: any) => {
         const isFavorite = favoriteMovies.includes(_.get(movie, 'id'));
