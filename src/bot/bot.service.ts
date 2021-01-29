@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UseInterceptors } from '@nestjs/common';
 import { UserService } from '../user/user.service';
+import { SentryInterceptor } from '../sentry.interceptor';
 
 import axios from 'axios';
 // eslint-disable-next-line
@@ -18,6 +19,7 @@ const INLINE_COMMAND_FAVORITE_ADD = 'favorite_add';
 const INLINE_COMMAND_FAVORITE_DELETE = 'favorite_delete';
 
 @Injectable()
+@UseInterceptors(SentryInterceptor)
 export class BotService {
   public bot: any = null;
   public commands: any = null;
@@ -28,14 +30,18 @@ export class BotService {
   }
 
   initialize() {
-    axios.defaults.baseURL = ENDPOINT_API;
-    axios.defaults.params = {};
-    axios.defaults.params.api_key = process.env.MOVIEDB_TOKEN;
-    axios.defaults.params.language = 'ru';
+    try {
+      axios.defaults.baseURL = ENDPOINT_API;
+      axios.defaults.params = {};
+      axios.defaults.params.api_key = process.env.MOVIEDB_TOKEN;
+      axios.defaults.params.language = 'ru';
 
-    // eslint-disable-next-line
-    const TelegramBot = require('node-telegram-bot-api');
-    this.bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+      // eslint-disable-next-line
+      const TelegramBot = require('node-telegram-bot-api');
+      this.bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   initializeKeyboard(id: number, text: string) {
@@ -55,84 +61,100 @@ export class BotService {
 
   registerListeners() {
     this.bot.onText(new RegExp(COMMAND_START), async (msg: any) => {
-      const {
-        chat: { id },
-      } = msg;
+      try {
+        const {
+          chat: { id },
+        } = msg;
 
-      await this.UserService.create({
-        id,
-        viewedMovies: [],
-        favoriteMovies: [],
-      });
-      this.initializeKeyboard(
-        id,
-        `🤖 Здравствуйте. Я создан чтобы вы могли узнать о популярных фильмах.`,
-      );
+        await this.UserService.create({
+          id,
+          viewedMovies: [],
+          favoriteMovies: [],
+        });
+        this.initializeKeyboard(
+          id,
+          `🤖 Здравствуйте. Я создан чтобы вы могли узнать о популярных фильмах.`,
+        );
+      } catch (e) {
+        console.error(e);
+      }
     });
 
     this.bot.onText(
       new RegExp(KEYBOARD_COMMAND_POPULAR_MOVIES),
       async (msg: any) => {
-        const {
-          chat: { id },
-          from: { id: userId },
-        } = msg;
+        try {
+          const {
+            chat: { id },
+            from: { id: userId },
+          } = msg;
 
-        const { markdown, inline_keyboard } = await this.getMovieListMsg(
-          'popular',
-          userId,
-        );
-        this.bot.sendMessage(id, markdown, {
-          parse_mode: 'markdown',
-          disable_web_page_preview: true,
-          reply_markup: {
-            inline_keyboard,
-          },
-        });
+          const { markdown, inline_keyboard } = await this.getMovieListMsg(
+            'popular',
+            userId,
+          );
+          this.bot.sendMessage(id, markdown, {
+            parse_mode: 'markdown',
+            disable_web_page_preview: true,
+            reply_markup: {
+              inline_keyboard,
+            },
+          });
+        } catch (e) {
+          console.error(e);
+        }
       },
     );
 
     this.bot.onText(
       new RegExp(KEYBOARD_COMMAND_NOW_PLAYING_MOVIES),
       async (msg: any) => {
-        const {
-          chat: { id },
-          from: { id: userId },
-        } = msg;
+        try {
+          const {
+            chat: { id },
+            from: { id: userId },
+          } = msg;
 
-        const { markdown, inline_keyboard } = await this.getMovieListMsg(
-          'now_playing',
-          userId,
-        );
-        this.bot.sendMessage(id, markdown, {
-          parse_mode: 'markdown',
-          disable_web_page_preview: true,
-          reply_markup: {
-            inline_keyboard,
-          },
-        });
+          const { markdown, inline_keyboard } = await this.getMovieListMsg(
+            'now_playing',
+            userId,
+          );
+          this.bot.sendMessage(id, markdown, {
+            parse_mode: 'markdown',
+            disable_web_page_preview: true,
+            reply_markup: {
+              inline_keyboard,
+            },
+          });
+        } catch (e) {
+          console.error(e);
+        }
       },
     );
 
     this.bot.onText(
       new RegExp(KEYBOARD_COMMAND_FAVORITE_MOVIES),
       async (msg: any) => {
-        const {
-          chat: { id },
-          from: { id: userId },
-        } = msg;
+        try {
+          const {
+            chat: { id },
+            from: { id: userId },
+          } = msg;
 
-        const { markdown, inline_keyboard } = await this.getMovieListMsg(
-          '_favorite',
-          userId,
-        );
-        this.bot.sendMessage(id, markdown, {
-          parse_mode: 'markdown',
-          disable_web_page_preview: true,
-          reply_markup: {
-            inline_keyboard,
-          },
-        });
+          const { markdown, inline_keyboard } = await this.getMovieListMsg(
+            '_favorite',
+            userId,
+          );
+          this.bot.sendMessage(id, markdown, {
+            parse_mode: 'markdown',
+            disable_web_page_preview: true,
+            reply_markup: {
+              inline_keyboard,
+            },
+          });
+        } catch (e) {
+          console.error(e);
+        }
       },
     );
 
