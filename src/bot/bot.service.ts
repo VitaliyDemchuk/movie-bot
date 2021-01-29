@@ -16,7 +16,6 @@ const INLINE_COMMAND_PREVIOS_PAGE = 'prev';
 const INLINE_COMMAND_NEXT_PAGE = 'next';
 const INLINE_COMMAND_FAVORITE_ADD = 'favorite_add';
 const INLINE_COMMAND_FAVORITE_DELETE = 'favorite_delete';
-const TEXT_LOADING = '🔎 Пожалуйста, подождите...';
 
 @Injectable()
 export class BotService {
@@ -79,8 +78,6 @@ export class BotService {
           from: { id: userId },
         } = msg;
 
-        this.bot.sendMessage(id, TEXT_LOADING);
-
         const { markdown, inline_keyboard } = await this.getMovieListMsg(
           'popular',
           userId,
@@ -103,8 +100,6 @@ export class BotService {
           from: { id: userId },
         } = msg;
 
-        this.bot.sendMessage(id, TEXT_LOADING);
-
         const { markdown, inline_keyboard } = await this.getMovieListMsg(
           'now_playing',
           userId,
@@ -126,8 +121,6 @@ export class BotService {
           chat: { id },
           from: { id: userId },
         } = msg;
-
-        this.bot.sendMessage(id, TEXT_LOADING);
 
         const { markdown, inline_keyboard } = await this.getMovieListMsg(
           '_favorite',
