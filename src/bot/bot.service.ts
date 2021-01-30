@@ -13,6 +13,7 @@ const COMMAND_MOVIE_DETAIL = '/movie([0-9]+)';
 const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярно';
 const KEYBOARD_COMMAND_NOW_PLAYING_MOVIES = '🍿 Сейчас смотрят';
 const KEYBOARD_COMMAND_FAVORITE_MOVIES = '⭐ Избранные';
+const KEYBOARD_COMMAND_RECOMENDATION_MOVIES = '📽️ Рекомендации';
 const INLINE_COMMAND_PREVIOS_PAGE = 'prev';
 const INLINE_COMMAND_NEXT_PAGE = 'next';
 const INLINE_COMMAND_FAVORITE_ADD = 'favorite_add';
@@ -52,7 +53,10 @@ export class BotService {
             KEYBOARD_COMMAND_POPULAR_MOVIES,
             KEYBOARD_COMMAND_NOW_PLAYING_MOVIES,
           ],
-          [KEYBOARD_COMMAND_FAVORITE_MOVIES],
+          [
+            KEYBOARD_COMMAND_FAVORITE_MOVIES,
+            KEYBOARD_COMMAND_RECOMENDATION_MOVIES,
+          ],
         ],
         resize_keyboard: true,
       },
@@ -200,6 +204,20 @@ export class BotService {
       },
     );
 
+    this.bot.onText(
+      new RegExp(KEYBOARD_COMMAND_RECOMENDATION_MOVIES),
+      async (msg: any) => {
+        try {
+          const {
+            from: { id: userId },
+          } = msg;
+          await this.sendRecomendations(userId);
+        } catch (e) {
+          console.error(e);
+        }
+      },
+    );
+
     this.bot.on('callback_query', async (query: any) => {
       try {
         const {
@@ -294,6 +312,108 @@ export class BotService {
         });
       }
     });
+  }
+
+  async sendRecomendations(userId: number) {
+    try {
+      let users = [];
+      if (userId) {
+        const user = await this.UserService.get(userId);
+        users.push(user);
+
+        if (!_.get(user, 'favoriteMovies.length')) {
+          await this.bot.sendMessage(
+            userId,
+            `🤖 Чтобы получать рекомендации, добавьте фильмы в избранное.`,
+          );
+          return;
+        }
+      } else {
+        users = await this.UserService.findAll();
+      }
+
+      for (const user of users) {
+        try {
+          if (!_.get(user, 'favoriteMovies.length')) {
+            continue;
+          }
+
+          let recomendationMsg = '';
+          const queries = [];
+          const viewedMovies = _.get(user, 'viewedMovies') || [];
+          const favoriteMovies = user.favoriteMovies.slice(0, 5);
+
+          for (const favoriteMovieId of favoriteMovies) {
+            queries.push(
+              axios({
+                url: `/movie/${favoriteMovieId}/recommendations`,
+                method: 'GET',
+                params: { region: 'ru' },
+              }),
+            );
+          }
+          const resultList = await Promise.all(queries);
+
+          for (const recomendation of resultList) {
+            if (!_.get(recomendation, 'data.results')) {
+              continue;
+            }
+            const filteredRecomendationList = recomendation.data.results
+              .filter((m: any) => !viewedMovies.includes(_.get(m, 'id')))
+              .slice(0, 4);
+            const recomendationList = await this.getProcessedMovies(
+              filteredRecomendationList,
+            );
+            for (const recomendationMovie of recomendationList) {
+              if (_.get(recomendationMovie, 'release_date')) {
+                const date: Date = new Date(recomendationMovie.release_date);
+                recomendationMovie._year = `(${date.getFullYear()})`;
+              }
+              recomendationMsg += `${recomendationMovie.title} ${recomendationMovie._year}`;
+
+              if (_.get(recomendationMovie, 'vote_average')) {
+                recomendationMsg += ` 🔥${recomendationMovie.vote_average}`;
+              }
+
+              recomendationMsg += `\nДетали: /movie${recomendationMovie.id}`;
+
+              if (_.get(recomendationMovie.videos, 0)) {
+                recomendationMsg += `\nТрейлер: [просмотр](https://youtu.be/${_.get(
+                  recomendationMovie.videos,
+                  '0.key',
+                )})`;
+              }
+
+              recomendationMsg += '\n\n';
+
+              viewedMovies.push(recomendationMovie.id);
+            }
+          }
+
+          if (recomendationMsg) {
+            const msg = `*Рекомендации на основе избранных фильмов:*\n\n${recomendationMsg}`;
+            await this.UserService.update(
+              Object.assign(user, { viewedMovies }),
+            );
+            await this.bot.sendMessage(user.id, msg, {
+              parse_mode: 'markdown',
+              disable_web_page_preview: true,
+            });
+          } else if (userId) {
+            await this.bot.sendMessage(
+              userId,
+              `🤖 Новых рекомендаций не найдено.`,
+            );
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      return Promise.resolve();
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   async getMovieMsg(movie: any, userId: number) {
