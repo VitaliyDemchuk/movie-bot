@@ -1,4 +1,5 @@
 import { Injectable, UseInterceptors } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { UserService } from '../user/user.service';
 import { SentryInterceptor } from '../sentry.interceptor';
 
@@ -314,6 +315,7 @@ export class BotService {
     });
   }
 
+  @Cron('0 00 20 * * *')
   async sendRecomendations(userId: number) {
     try {
       let users = [];
