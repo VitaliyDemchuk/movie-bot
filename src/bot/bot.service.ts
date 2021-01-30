@@ -195,6 +195,13 @@ export class BotService {
               inline_keyboard,
             },
           });
+
+          const user = await this.UserService.get(userId);
+          await this.UserService.update(
+            Object.assign(user, {
+              viewedMovies: [..._.get(user, 'viewedMovies', []), movie.id],
+            }),
+          );
         } catch (e) {
           console.error(e.message);
           this.bot.sendMessage(
@@ -315,7 +322,10 @@ export class BotService {
     });
   }
 
-  @Cron('0 00 20 * * *')
+  @Cron('0 00 20 * * *', {
+    name: 'recomendations',
+    timeZone: 'Europe/Moscow',
+  })
   async sendRecomendations(userId: number) {
     try {
       let users = [];
@@ -371,7 +381,7 @@ export class BotService {
                 const date: Date = new Date(recomendationMovie.release_date);
                 recomendationMovie._year = `(${date.getFullYear()})`;
               }
-              recomendationMsg += `${recomendationMovie.title} ${recomendationMovie._year}`;
+              recomendationMsg += `🆕 *${recomendationMovie.title} ${recomendationMovie._year}*`;
 
               if (_.get(recomendationMovie, 'vote_average')) {
                 recomendationMsg += ` 🔥${recomendationMovie.vote_average}`;
@@ -387,16 +397,11 @@ export class BotService {
               }
 
               recomendationMsg += '\n\n';
-
-              viewedMovies.push(recomendationMovie.id);
             }
           }
 
           if (recomendationMsg) {
             const msg = `*Рекомендации на основе избранных фильмов:*\n\n${recomendationMsg}`;
-            await this.UserService.update(
-              Object.assign(user, { viewedMovies }),
-            );
             await this.bot.sendMessage(user.id, msg, {
               parse_mode: 'markdown',
               disable_web_page_preview: true,
@@ -543,7 +548,6 @@ export class BotService {
         const titleSiteLink = `${movie.title} ${movie._year}`;
         if (!viewedMovies.includes(movie.id)) {
           markdown += `🆕 *${titleSiteLink}*`;
-          viewedMovies.push(movie.id);
         } else {
           markdown += `${isFavorite ? '⭐ ' : ''}${titleSiteLink}`;
         }
@@ -591,10 +595,6 @@ export class BotService {
           }),
         });
       }
-
-      await this.UserService.update(
-        Object.assign(currentUser, { viewedMovies }),
-      );
 
       return Promise.resolve({
         markdown,
