@@ -267,7 +267,7 @@ export class BotService {
 
             const index = favoriteMovies.indexOf(_.get(movie, 'id'));
             if (data.t === INLINE_COMMAND_FAVORITE_ADD && index === -1) {
-              favoriteMovies.push(_.get(movie, 'id'));
+              favoriteMovies.unshift(_.get(movie, 'id'));
             } else if (
               data.t === INLINE_COMMAND_FAVORITE_DELETE &&
               index > -1
