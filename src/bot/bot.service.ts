@@ -48,6 +48,7 @@ export class BotService {
 
   initializeKeyboard(id: number, text: string) {
     this.bot.sendMessage(id, text, {
+      parse_mode: 'markdown',
       reply_markup: {
         keyboard: [
           [
@@ -207,6 +208,9 @@ export class BotService {
           this.bot.sendMessage(
             chatId,
             `🤖 Извините, произошла непредвиденная ошибка.`,
+            {
+              parse_mode: 'markdown',
+            },
           );
         }
       },
@@ -337,6 +341,9 @@ export class BotService {
           await this.bot.sendMessage(
             userId,
             `🤖 Чтобы получать рекомендации, добавьте фильмы в избранное.`,
+            {
+              parse_mode: 'markdown',
+            },
           );
           return;
         }
@@ -410,6 +417,9 @@ export class BotService {
             await this.bot.sendMessage(
               userId,
               `🤖 Новых рекомендаций не найдено.`,
+              {
+                parse_mode: 'markdown',
+              },
             );
           }
         } catch (e) {
