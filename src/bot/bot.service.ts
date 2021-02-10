@@ -24,7 +24,6 @@ const INLINE_COMMAND_FAVORITE_DELETE = 'favorite_delete';
 @UseInterceptors(SentryInterceptor)
 export class BotService {
   public bot: any = null;
-  public commands: any = null;
 
   constructor(private readonly UserService: UserService) {
     this.initialize();
@@ -173,23 +172,12 @@ export class BotService {
         } = msg;
 
         try {
-          if (!id) {
-            return;
-          }
+          const movie = await this.getMovie(id);
 
-          const result: any = await Promise.all([
-            axios.get(`/movie/${id}`),
-            this.getMovieVideos(id),
-          ]);
-          const movie = {
-            ..._.get(result, `0.data`),
-            videos: _.get(result, `1`),
-          };
           const { markdown, inline_keyboard } = await this.getMovieMsg(
             movie,
             userId,
           );
-
           this.bot.sendMessage(chatId, markdown, {
             parse_mode: 'markdown',
             reply_markup: {
@@ -263,16 +251,8 @@ export class BotService {
 
           case INLINE_COMMAND_FAVORITE_ADD:
           case INLINE_COMMAND_FAVORITE_DELETE:
-            const result: any = await Promise.all([
-              axios.get(`/movie/${data.p.i}`),
-              this.getMovieVideos(data.p.i),
-            ]);
-            const movie = {
-              ..._.get(result, `0.data`),
-              videos: _.get(result, `1`),
-            };
+            const movie = await this.getMovie(data.p.i);
 
-            // Update user
             const currentUser = await this.UserService.get(userId);
             const favoriteMovies = _.get(currentUser, 'favoriteMovies', []);
 
@@ -649,6 +629,22 @@ export class BotService {
         movies[key].videos = resultVideo[key];
       }
       return Promise.resolve(movies);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  async getMovie(id: number) {
+    try {
+      const result: any = await Promise.all([
+        axios.get(`/movie/${id}`),
+        this.getMovieVideos(id),
+      ]);
+
+      return Promise.resolve({
+        ..._.get(result, `0.data`),
+        videos: _.get(result, `1`),
+      });
     } catch (e) {
       return Promise.reject(e);
     }
