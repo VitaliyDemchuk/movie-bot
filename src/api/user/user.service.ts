@@ -8,7 +8,11 @@ const _ = require('lodash');
 
 @Injectable()
 export class ApiUserService {
-  constructor(private readonly UserService: UserService) {}
+  public bot: any = null;
+
+  constructor(private readonly UserService: UserService) {
+    this.initialize();
+  }
 
   initialize() {
     try {
@@ -32,6 +36,14 @@ export class ApiUserService {
       for (const user of users) {
         const queries = [];
 
+        const resultUser = await axios({
+          method: 'POST',
+          url: `https://api.telegram.org/bot${process.env.BOT_TOKEN}/getChat`,
+          data: {
+            chat_id: user.id,
+          },
+        });
+
         for (const favoriteId of _.get(user, 'favoriteMovies', [])) {
           queries.push(
             axios
@@ -44,11 +56,8 @@ export class ApiUserService {
         queriesWrapper.push(
           Promise.all(queries)
             .then((favorites) => ({
-              user: user.id,
-              favorites: favorites.map((e) => ({
-                id: _.get(e, 'id'),
-                title: _.get(e, 'title'),
-              })),
+              user: _.get(resultUser, 'data.result'),
+              favorites,
             }))
             .catch(() => null),
         );
