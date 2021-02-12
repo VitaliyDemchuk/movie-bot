@@ -3,7 +3,9 @@ export interface PayloadListDTO {
 }
 
 export interface ResponseListDTO {
-  page?: number;
-  size?: number;
-  content?: Array<any>;
+  page: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+  content: Array<any>;
 }

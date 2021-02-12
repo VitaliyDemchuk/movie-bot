@@ -29,6 +29,8 @@ export class ApiUserService {
     try {
       const page: number = _.get(payload, 'page') || 0;
       const size = 10;
+      const totalElements = await this.UserService.count();
+      const totalPages = Math.ceil(totalElements / size);
 
       const users = await this.UserService.findAll(page * size, size);
       const queriesWrapper = [];
@@ -71,8 +73,11 @@ export class ApiUserService {
       const result = {
         page,
         size,
+        totalPages,
+        totalElements,
         content: resultMovies.filter((e) => e),
       };
+
       return Promise.resolve(result);
     } catch (e) {
       return Promise.reject(e);
