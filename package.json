@@ -8,6 +8,7 @@
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
+    "build:frontend": "cd frontend && npm ci && npm run build && cd ../",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -27,6 +28,7 @@
     "@nestjs/mongoose": "^7.2.2",
     "@nestjs/platform-express": "^7.5.1",
     "@nestjs/schedule": "^0.4.2",
+    "@nestjs/serve-static": "^2.1.4",
     "@sentry/node": "^6.0.3",
     "axios": "^0.21.1",
     "lodash": "^4.17.20",
