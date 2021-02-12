@@ -44,7 +44,10 @@ export class ApiUserService {
           },
         });
 
-        for (const favoriteId of _.get(user, 'favoriteMovies', [])) {
+        for (const favoriteId of _.get(user, 'favoriteMovies', []).slice(
+          0,
+          5,
+        )) {
           queries.push(
             axios
               .get(`/movie/${favoriteId}`)
@@ -56,7 +59,7 @@ export class ApiUserService {
         queriesWrapper.push(
           Promise.all(queries)
             .then((favorites) => ({
-              user: _.get(resultUser, 'data.result'),
+              user: _.get(resultUser, 'data.result', null),
               favorites,
             }))
             .catch(() => null),
