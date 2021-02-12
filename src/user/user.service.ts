@@ -32,7 +32,7 @@ export class UserService {
     return this.userModel.findOne({ id }).exec();
   }
 
-  async findAll(): Promise<User[]> {
-    return this.userModel.find().exec();
+  async findAll(skip = 0, limit = 0): Promise<User[]> {
+    return this.userModel.find().skip(skip).limit(limit).exec();
   }
 }

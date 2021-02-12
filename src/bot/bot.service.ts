@@ -7,8 +7,6 @@ import axios from 'axios';
 // eslint-disable-next-line
 const _ = require('lodash');
 
-const ENDPOINT_API = 'https://api.themoviedb.org/3';
-const ENDPOINT_WEBSITE = 'https://www.themoviedb.org';
 const COMMAND_START = '/start';
 const COMMAND_MOVIE_DETAIL = '/movie([0-9]+)';
 const KEYBOARD_COMMAND_POPULAR_MOVIES = '🎦 Популярно';
@@ -32,7 +30,7 @@ export class BotService {
 
   initialize() {
     try {
-      axios.defaults.baseURL = ENDPOINT_API;
+      axios.defaults.baseURL = process.env.MOVIEDB_ENDPOINT;
       axios.defaults.params = {};
       axios.defaults.params.api_key = process.env.MOVIEDB_TOKEN;
       axios.defaults.params.language = 'ru';
@@ -422,7 +420,7 @@ export class BotService {
       const keyboard: any = [
         {
           text: '🔗 На сайт',
-          url: `${ENDPOINT_WEBSITE}/movie/${movie.id}`,
+          url: `${process.env.MOVIEDB_WEBSITE}/movie/${movie.id}`,
         },
       ];
 
