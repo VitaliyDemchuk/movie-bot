@@ -1,13 +1,22 @@
 <template>
-  <pre>{{ JSON.stringify(users, null, 2) }}</pre>
+  <div class="container mx-auto">
+    <div v-for="(user, index) of users.content" :key="index">
+      <UserCard :user="user" />
+    </div>
+  </div>
 </template>
 
 <script>
 import axios from 'axios';
+import UserCard from '../components/UserCard.vue';
 
 export default {
+  components: { UserCard },
+
   data: () => ({
-    users: [],
+    users: {
+      content: [],
+    },
     payload: {
       page: 0,
     },
