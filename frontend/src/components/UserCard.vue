@@ -26,7 +26,7 @@
           />
         </div>
       </div>
-      <div class="text-sm text-gray-500">Список избранных пуст</div>
+      <div v-else class="text-sm text-gray-500">Список избранных пуст</div>
     </div>
   </div>
 </template>
