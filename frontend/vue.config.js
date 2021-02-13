@@ -4,7 +4,7 @@ module.exports = {
   devServer: {
     proxy: {
       '^/api': {
-        target: 'http://localhost:3000',
+        target: process.env.BACKEND_ENDPOINT || 'http://localhost:3000',
       },
     },
   },

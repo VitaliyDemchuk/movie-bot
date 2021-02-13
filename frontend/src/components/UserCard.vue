@@ -3,15 +3,19 @@
     <div class="flex items-center px-6 py-3 bg-gray-900">
       <img class="h-6 w-6 text-white fill-current" src="/icons/user.svg" />
       <div class="mx-3 text-white">
-        <div class="font-semibold text-lg">{{ fullName }}</div>
-        <a
-          v-if="user.user.username"
-          class="d-block text-xs"
-          target="_blank"
-          :href="`https://t.me/${user.user.username}`"
-        >
-          @{{ user.user.username }}
-        </a>
+        <div class="font-semibold text-lg">
+          <a
+            v-if="user.user.username"
+            class="d-block"
+            target="_blank"
+            :href="`https://t.me/${user.user.username}`"
+          >
+            {{ fullName }}
+          </a>
+          <div v-else>
+            {{ fullName }}
+          </div>
+        </div>
       </div>
     </div>
     <div class="py-4 px-4">
