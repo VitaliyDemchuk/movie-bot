@@ -28,7 +28,7 @@ export class ApiUserService {
   async getUsers(payload: PayloadListDTO): Promise<ResponseListDTO> {
     try {
       const page: number = _.get(payload, 'page') || 0;
-      const size = 10;
+      const size = 9;
       const totalElements = await this.UserService.count();
       const totalPages = Math.ceil(totalElements / size);
 

@@ -32,7 +32,7 @@
       </div>
     </div>
     <div v-else class="main">
-      <h1 class="text-gray-900 font-bold text-lg">
+      <h1 class="text-gray-900 font-bold text-lg mb-4">
         Всего пользователей: {{ users.totalElements }}
       </h1>
       <div class="grid sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -42,9 +42,10 @@
           :user="user"
         />
       </div>
-      <ul class="my-3 flex">
+
+      <ul class="mt-8 mb-2 flex">
         <li
-          class="mx-1 bg-gray-200 rounded-lg"
+          class="mr-1 bg-gray-200 rounded-lg"
           :class="
             payload.page - 1 < 0
               ? 'text-gray-500'
@@ -61,7 +62,7 @@
         </li>
 
         <li
-          class="mx-1 bg-gray-200 rounded-lg"
+          class="ml-1 bg-gray-200 rounded-lg"
           :class="
             payload.page + 1 > users.totalPages - 1
               ? 'text-gray-500'

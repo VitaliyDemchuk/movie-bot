@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-white shadow-lg rounded-lg overflow-hidden my-4">
+  <div class="bg-white shadow-lg rounded-lg overflow-hidden">
     <div class="flex items-center px-6 py-3 bg-gray-900">
       <img class="h-6 w-6 text-white fill-current" src="/icons/user.svg" />
       <div class="mx-3 text-white">
@@ -15,15 +15,18 @@
       </div>
     </div>
     <div class="py-4 px-4">
-      <h2 class="text-lg font-semibold text-gray-800 pb-3 px-2">Избранные</h2>
-      <div class="movie-list">
-        <MovieCard
-          v-for="(movie, index) of user.favorites"
-          :key="index"
-          :movie="movie"
-          class="movie-list-item"
-        />
+      <div v-if="Array.isArray(user.favorites) && user.favorites.length">
+        <h2 class="text-lg font-semibold text-gray-800 pb-3 px-2">Избранные</h2>
+        <div class="movie-list">
+          <MovieCard
+            v-for="(movie, index) of user.favorites"
+            :key="index"
+            :movie="movie"
+            class="movie-list-item"
+          />
+        </div>
       </div>
+      <div class="text-sm text-gray-500">Список избранных пуст</div>
     </div>
   </div>
 </template>
@@ -43,7 +46,9 @@ export default {
 
   computed: {
     fullName() {
-      return `${this.user.user.first_name} ${this.user.user.last_name}`;
+      return `${this.user.user.first_name || ''} ${
+        this.user.user.last_name || ''
+      }`;
     },
   },
 };
