@@ -1,6 +1,6 @@
 <template>
   <div class="app">
-    <nav class="sticky top-0 bg-white shadow flex items-center py-4 px-4">
+    <nav class="sticky top-0 bg-white shadow flex items-center py-4 px-4 z-10">
       <a href="https://t.me/movies_xd_bot" target="_blank">
         <img class="h-10 w-auto" src="/logo.png" />
       </a>

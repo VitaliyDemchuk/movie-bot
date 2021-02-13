@@ -1,19 +1,29 @@
 <template>
-  <div class="bg-gray-100 shadow p-4">
-    <div>
-      <div>{{ fullName }}</div>
-      <a
-        v-if="user.user.username"
-        class="d-block"
-        target="_blank"
-        :href="`https://t.me/${user.user.username}`"
-      >
-        @{{ user.user.username }}
-      </a>
+  <div class="bg-white shadow-lg rounded-lg overflow-hidden my-4">
+    <div class="flex items-center px-6 py-3 bg-gray-900">
+      <img class="h-6 w-6 text-white fill-current" src="/icons/user.svg" />
+      <div class="mx-3 text-white">
+        <div class="font-semibold text-lg">{{ fullName }}</div>
+        <a
+          v-if="user.user.username"
+          class="d-block text-xs"
+          target="_blank"
+          :href="`https://t.me/${user.user.username}`"
+        >
+          @{{ user.user.username }}
+        </a>
+      </div>
     </div>
-
-    <div v-for="(movie, index) of user.favorites" :key="index">
-      <MovieCard :movie="movie" />
+    <div class="py-4 px-4">
+      <h2 class="text-lg font-semibold text-gray-800 pb-3 px-2">Избранные</h2>
+      <div class="movie-list">
+        <MovieCard
+          v-for="(movie, index) of user.favorites"
+          :key="index"
+          :movie="movie"
+          class="movie-list-item"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -38,3 +48,19 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.movie-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0 8px;
+}
+
+.movie-list-item {
+  margin-bottom: 16px;
+}
+
+.movie-list-item:last-child {
+  margin-bottom: 0;
+}
+</style>
