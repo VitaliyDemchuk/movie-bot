@@ -304,7 +304,7 @@ export class BotService {
     });
   }
 
-  @Cron('0 00 20 * * *', {
+  @Cron('0 00 21 * * *', {
     name: 'recomendations',
     timeZone: 'Europe/Moscow',
   })
@@ -350,18 +350,21 @@ export class BotService {
             );
           }
           const resultList = await Promise.all(queries);
+          const viewedRecomendations = [];
 
           for (const recomendation of resultList) {
             if (!_.get(recomendation, 'data.results')) {
               continue;
             }
+
             const filteredRecomendationList = recomendation.data.results
               .filter((m: any) => !viewedMovies.includes(_.get(m, 'id')))
               .slice(0, 4);
-            const recomendationList = await this.getProcessedMovies(
-              filteredRecomendationList,
+            viewedRecomendations.push(
+              ...filteredRecomendationList.map((el: any) => el.id),
             );
-            for (const recomendationMovie of recomendationList) {
+
+            for (const recomendationMovie of filteredRecomendationList) {
               if (_.get(recomendationMovie, 'release_date')) {
                 const date: Date = new Date(recomendationMovie.release_date);
                 recomendationMovie._year = `(${date.getFullYear()})`;
@@ -398,6 +401,17 @@ export class BotService {
               {
                 parse_mode: 'markdown',
               },
+            );
+          }
+
+          if (viewedRecomendations.length > 0) {
+            await this.UserService.update(
+              Object.assign(user, {
+                viewedMovies: [
+                  ..._.get(user, 'viewedMovies', []),
+                  ...viewedRecomendations,
+                ],
+              }),
             );
           }
         } catch (e) {
